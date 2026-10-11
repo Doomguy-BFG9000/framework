@@ -8,7 +8,7 @@ v0.x, minor releases may contain breaking changes.
 
 Releases of this module are tagged `gonsole/auth/vX.Y.Z`.
 
-## [Unreleased]
+## [0.7.0] - 2026-10-11
 
 ### Changed
 
@@ -94,6 +94,7 @@ Releases of this module are tagged `gonsole/auth/vX.Y.Z`.
 - Every command finds an account by its address trimmed and in lower case.
 - `Commands`, every account command in the order it is declared.
 
+[0.7.0]: https://github.com/gopherium/framework/releases/tag/gonsole%2Fauth%2Fv0.7.0
 [0.6.0]: https://github.com/gopherium/framework/releases/tag/gonsole%2Fauth%2Fv0.6.0
 [0.5.0]: https://github.com/gopherium/framework/releases/tag/gonsole%2Fauth%2Fv0.5.0
 [0.4.1]: https://github.com/gopherium/framework/releases/tag/gonsole%2Fauth%2Fv0.4.1
