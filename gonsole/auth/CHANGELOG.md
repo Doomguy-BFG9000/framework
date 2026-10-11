@@ -8,6 +8,12 @@ v0.x, minor releases may contain breaking changes.
 
 Releases of this module are tagged `gonsole/auth/vX.Y.Z`.
 
+## [Unreleased]
+
+### Changed
+
+- Requires `authkit` 0.19.0 and `authkit/postgres` 0.13.0.
+
 ## [0.6.0] - 2026-10-10
 
 ### Added
