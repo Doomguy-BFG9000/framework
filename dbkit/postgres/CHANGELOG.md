@@ -10,6 +10,19 @@ Releases of this module are tagged `dbkit/postgres/vX.Y.Z`.
 
 ## [Unreleased]
 
+### Added
+
+- `pgtest.CheckAddress`, which returns every refusal of `pgtest.New`, those of `postgres.CheckAddress` included, marked `dbkit.ErrAddress` and never echoing the address.
+
+### Changed
+
+- `pgtest.New` and `pgtest.NewSwept` refuse a `pool_` key with no dot in the server address or its service file.
+
+### Fixed
+
+- `pgtest.NewSwept` checks the address before it sweeps, so a refused address never connects to the server.
+- `Classify` classes 23001 as `dbkit.ErrForeignKey`, the code PostgreSQL 18 raises when an `ON DELETE RESTRICT` or `ON UPDATE RESTRICT` key stops a change.
+
 ## [0.2.0] - 2026-10-10
 
 ### Added

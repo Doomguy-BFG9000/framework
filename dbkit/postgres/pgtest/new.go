@@ -64,6 +64,9 @@ func configOf(address string) (pgtestdb.Config, error) {
 	if err != nil {
 		return pgtestdb.Config{}, err
 	}
+	if err := checkPoolKeys(resolved.RuntimeParams); err != nil {
+		return pgtestdb.Config{}, err
+	}
 	user, password, _ := strings.Cut(url.UserPassword(server.User.Username(), resolved.Password).String(), ":")
 	return pgtestdb.Config{
 		DriverName: driverName,
@@ -78,21 +81,43 @@ func configOf(address string) (pgtestdb.Config, error) {
 
 // serverURL returns the URL of address, or the error for a URL New refuses.
 func serverURL(address string) (*url.URL, error) {
-	server, err := url.Parse(address)
-	switch {
-	case err != nil || (server.Scheme != "postgres" && server.Scheme != "postgresql"):
-		return nil, errNotURL
-	case strings.Contains(server.Hostname(), ":"):
-		return nil, errColonHost
-	case server.Query().Has("password"):
-		return nil, errQueryPassword
-	case server.Query().Has("sslpassword"):
-		return nil, errQuerySSLPassword
+	server, err := parsedURL(address)
+	if err != nil {
+		return nil, err
 	}
-	for _, key := range movingKeys {
-		if server.Query().Has(key) {
-			return nil, errQueryKey(key)
-		}
+	if strings.Contains(server.Hostname(), ":") {
+		return nil, errColonHost
+	}
+	if err := checkQuery(server.Query()); err != nil {
+		return nil, err
 	}
 	return server, nil
+}
+
+// parsedURL returns address read as a URL, or errNotURL for an address that is no postgres:// or postgresql:// URL.
+func parsedURL(address string) (*url.URL, error) {
+	server, err := url.Parse(address)
+	if err != nil {
+		return nil, errNotURL
+	}
+	if server.Scheme != "postgres" && server.Scheme != "postgresql" {
+		return nil, errNotURL
+	}
+	return server, nil
+}
+
+// checkQuery returns the error for a query that sets a password or a key that would move the test databases.
+func checkQuery(query url.Values) error {
+	if query.Has("password") {
+		return errQueryPassword
+	}
+	if query.Has("sslpassword") {
+		return errQuerySSLPassword
+	}
+	for _, key := range movingKeys {
+		if query.Has(key) {
+			return errQueryKey(key)
+		}
+	}
+	return nil
 }

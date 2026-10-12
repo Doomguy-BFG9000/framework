@@ -24,9 +24,13 @@ CREATE TABLE classify_rows (
 	amount integer CHECK (amount >= 0)
 );
 CREATE TABLE classify_locks (id integer PRIMARY KEY, n integer NOT NULL);
+CREATE TABLE classify_kept (id integer PRIMARY KEY);
+CREATE TABLE classify_keepers (kept integer REFERENCES classify_kept (id) ON DELETE RESTRICT ON UPDATE RESTRICT);
 INSERT INTO classify_parents VALUES (1);
 INSERT INTO classify_rows VALUES (1, 'taken', 1, 0);
 INSERT INTO classify_locks VALUES (1, 0), (2, 0);
+INSERT INTO classify_kept VALUES (1);
+INSERT INTO classify_keepers VALUES (1);
 `
 
 // classifyClasses lists every dbkit error class.
@@ -146,21 +150,56 @@ func classifyMustCode(t *testing.T, err error, code string) {
 	}
 }
 
+// classifyCase is one server error a classify test raises and the class it wants.
+type classifyCase struct {
+	// name names the case.
+	name string
+	// run raises the server error on a fresh handle.
+	run func(*testing.T, *sql.DB) error
+	// code is the code the server answers with.
+	code string
+	// class is the dbkit class the code carries, nil for none.
+	class error
+}
+
+// classifyCheck fails t unless Classify gives the error of c its class alone and keeps its code and message.
+func classifyCheck(t *testing.T, c classifyCase) {
+	t.Helper()
+	err := c.run(t, classifyOpen(t))
+	classifyMustCode(t, err, c.code)
+
+	got := postgres.Classify(err)
+
+	classifyMustCode(t, got, c.code)
+	for _, class := range classifyClasses {
+		if want := class == c.class; errors.Is(got, class) != want {
+			t.Errorf("errors.Is(Classify(%v), %v) = %v, want %v", err, class, !want, want)
+		}
+	}
+	if c.class == nil && got != err {
+		t.Errorf("Classify(%v) = %v, want the error unchanged", err, got)
+	}
+	if c.class != nil && got.Error() != c.class.Error()+": "+err.Error() {
+		t.Errorf("Classify().Error() = %q, want the class and the server message", got.Error())
+	}
+	if again := postgres.Classify(got); again != got {
+		t.Errorf("Classify(Classify()) = %v, want the classified error unchanged", again)
+	}
+}
+
 func TestClassify(t *testing.T) {
 	t.Parallel()
 
-	cases := []struct {
-		name  string
-		run   func(*testing.T, *sql.DB) error
-		code  string
-		class error
-	}{
+	cases := []classifyCase{
 		{"unique", classifyExec("INSERT INTO classify_rows (id, code) VALUES (2, 'taken')"), "23505", dbkit.ErrUnique},
 		{"primary key", classifyExec("INSERT INTO classify_rows (id, code) VALUES (1, 'free')"), "23505",
 			dbkit.ErrUnique},
 		{"foreign key", classifyExec("INSERT INTO classify_rows VALUES (3, 'orphan', 99, 0)"), "23503",
 			dbkit.ErrForeignKey},
 		{"a delete a foreign key stops", classifyExec("DELETE FROM classify_parents WHERE id = 1"), "23503",
+			dbkit.ErrForeignKey},
+		{"a restricted delete", classifyExec("DELETE FROM classify_kept WHERE id = 1"), "23001", dbkit.ErrForeignKey},
+		{"a restricted update", classifyExec("UPDATE classify_kept SET id = 2 WHERE id = 1"), "23001",
 			dbkit.ErrForeignKey},
 		{"not null", classifyExec("INSERT INTO classify_rows (id, code) VALUES (4, NULL)"), "23502", dbkit.ErrNotNull},
 		{"check", classifyExec("INSERT INTO classify_rows VALUES (5, 'negative', 1, -1)"), "23514", dbkit.ErrCheck},
@@ -175,26 +214,8 @@ func TestClassify(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
-			err := c.run(t, classifyOpen(t))
-			classifyMustCode(t, err, c.code)
 
-			got := postgres.Classify(err)
-
-			classifyMustCode(t, got, c.code)
-			for _, class := range classifyClasses {
-				if want := class == c.class; errors.Is(got, class) != want {
-					t.Errorf("errors.Is(Classify(%v), %v) = %v, want %v", err, class, !want, want)
-				}
-			}
-			if c.class == nil && got != err {
-				t.Errorf("Classify(%v) = %v, want the error unchanged", err, got)
-			}
-			if c.class != nil && got.Error() != c.class.Error()+": "+err.Error() {
-				t.Errorf("Classify().Error() = %q, want the class and the server message", got.Error())
-			}
-			if again := postgres.Classify(got); again != got {
-				t.Errorf("Classify(Classify()) = %v, want the classified error unchanged", again)
-			}
+			classifyCheck(t, c)
 		})
 	}
 }

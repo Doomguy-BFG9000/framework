@@ -21,7 +21,7 @@ type sweepKey struct {
 // sweeps holds the sweep of each address and scope that this test process ran.
 var sweeps sync.Map
 
-// NewSwept sweeps the stale test databases of the server at address once per test process, then answers New.
+// NewSwept checks address, sweeps the stale test databases of its server once per test process, then answers New.
 func NewSwept(t testing.TB, address string, olderThan time.Duration, migrator pgtestdb.Migrator) string {
 	t.Helper()
 	return newSwept(t, address, olderThan, migrator, "")
@@ -32,6 +32,9 @@ func newSwept(t testing.TB, address string, olderThan time.Duration, migrator pg
 	t.Helper()
 	if olderThan <= 0 {
 		t.Fatalf("dbkit: NewSwept needs olderThan above zero, got %v", olderThan)
+	}
+	if err := CheckAddress(address); err != nil {
+		t.Fatal(err)
 	}
 	once, _ := sweeps.LoadOrStore(sweepKey{address: address, scope: scope}, new(sync.Once))
 	once.(*sync.Once).Do(func() {

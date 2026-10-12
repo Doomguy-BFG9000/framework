@@ -15,6 +15,7 @@ import (
 var codeClasses = map[string]error{
 	"23505": dbkit.ErrUnique,
 	"23503": dbkit.ErrForeignKey,
+	"23001": dbkit.ErrForeignKey,
 	"23502": dbkit.ErrNotNull,
 	"23514": dbkit.ErrCheck,
 	"55P03": dbkit.ErrBusy,
