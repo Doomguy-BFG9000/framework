@@ -1,0 +1,92 @@
+version: "2"
+
+linters:
+  default: standard
+  enable:
+    - cyclop
+    - depguard
+    - forbidigo
+    - gocognit
+    - lll
+    - misspell
+    - revive
+    - unconvert
+    - unparam
+  settings:
+    cyclop:
+      max-complexity: 10
+    gocognit:
+      min-complexity: 15
+    lll:
+      line-length: 120
+    revive:
+      rules:
+        - name: blank-imports
+          disabled: true
+        - name: exported
+    depguard:
+      rules:
+        auth-purity:
+          list-mode: strict
+          files:
+            - $all
+            - "!$test"
+          allow:
+            - $gostd
+            - github.com/gopherium/framework/gonsole
+            - github.com/gopherium/framework/dbkit$
+            - github.com/gopherium/framework/dbkit/sqlite$
+            - github.com/gopherium/gouncer/authkit/sqlite$
+        test-purity:
+          list-mode: strict
+          files:
+            - $test
+          allow:
+            - $gostd
+            - github.com/gopherium/framework/gonsole
+            - github.com/gopherium/framework/dbkit$
+            - github.com/gopherium/framework/dbkit/sqlite
+            - github.com/gopherium/gouncer$
+            - github.com/gopherium/gouncer/authkit/sqlite$
+        one-sqlite-driver:
+          deny:
+            - pkg: modernc.org/sqlite
+              desc: open SQLite through github.com/gopherium/framework/dbkit/sqlite
+            - pkg: modernc.org/libc
+              desc: open SQLite through github.com/gopherium/framework/dbkit/sqlite
+            - pkg: github.com/mattn/go-sqlite3
+              desc: open SQLite through github.com/gopherium/framework/dbkit/sqlite
+            - pkg: github.com/ncruces/go-sqlite3
+              desc: open SQLite through github.com/gopherium/framework/dbkit/sqlite
+            - pkg: github.com/glebarez/go-sqlite
+              desc: open SQLite through github.com/gopherium/framework/dbkit/sqlite
+            - pkg: turso.tech/database/tursogo
+              desc: open SQLite through github.com/gopherium/framework/dbkit/sqlite
+    forbidigo:
+      analyze-types: true
+      forbid:
+        - pattern: ^sql\.Open(DB)?$
+          pkg: ^database/sql$
+          msg: take the run's database handle from gonsole.Call.DB
+        - pattern: ^sqlite\.Open$
+          pkg: ^github\.com/gopherium/framework/dbkit/sqlite$
+          msg: take the run's database handle from gonsole.Call.DB
+  exclusions:
+    rules:
+      - path: _test\.go
+        linters:
+          - cyclop
+          - gocognit
+      - path: _test\.go
+        linters:
+          - forbidigo
+        text: "sqlite\\.Open"
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/gopherium/framework

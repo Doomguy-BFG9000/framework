@@ -26,7 +26,9 @@ need and ignore the rest.
 - [`gonsole`](gonsole/) runs the command line of a Go program built from
   core commands, settings and compiled plugins.
 - [`gonsole/auth`](gonsole/auth/) offers the account commands of a program
-  whose accounts live in gouncer's Postgres store.
+  whose accounts live in gouncer's PostgreSQL or SQLite store.
+- [`gonsole/auth/sqlite`](gonsole/auth/sqlite/) runs those account
+  commands and their records on a program's one SQLite handle.
 - [`gottext`](gottext/) reads, writes and syncs gettext catalogs for
   TypeScript applications, published to npm as `@gopherium/gottext`.
 - [`mailkit`](mailkit/) renders mail from template files and sends it
