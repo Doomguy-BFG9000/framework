@@ -146,15 +146,47 @@ func classifyMustCode(t *testing.T, err error, code string) {
 	}
 }
 
+// classifyCase is one server error a classify test raises and the class it wants.
+type classifyCase struct {
+	// name names the case.
+	name string
+	// run raises the server error on a fresh handle.
+	run func(*testing.T, *sql.DB) error
+	// code is the code the server answers with.
+	code string
+	// class is the dbkit class the code carries, nil for none.
+	class error
+}
+
+// classifyCheck fails t unless Classify gives the error of c its class alone and keeps its code and message.
+func classifyCheck(t *testing.T, c classifyCase) {
+	t.Helper()
+	err := c.run(t, classifyOpen(t))
+	classifyMustCode(t, err, c.code)
+
+	got := postgres.Classify(err)
+
+	classifyMustCode(t, got, c.code)
+	for _, class := range classifyClasses {
+		if want := class == c.class; errors.Is(got, class) != want {
+			t.Errorf("errors.Is(Classify(%v), %v) = %v, want %v", err, class, !want, want)
+		}
+	}
+	if c.class == nil && got != err {
+		t.Errorf("Classify(%v) = %v, want the error unchanged", err, got)
+	}
+	if c.class != nil && got.Error() != c.class.Error()+": "+err.Error() {
+		t.Errorf("Classify().Error() = %q, want the class and the server message", got.Error())
+	}
+	if again := postgres.Classify(got); again != got {
+		t.Errorf("Classify(Classify()) = %v, want the classified error unchanged", again)
+	}
+}
+
 func TestClassify(t *testing.T) {
 	t.Parallel()
 
-	cases := []struct {
-		name  string
-		run   func(*testing.T, *sql.DB) error
-		code  string
-		class error
-	}{
+	cases := []classifyCase{
 		{"unique", classifyExec("INSERT INTO classify_rows (id, code) VALUES (2, 'taken')"), "23505", dbkit.ErrUnique},
 		{"primary key", classifyExec("INSERT INTO classify_rows (id, code) VALUES (1, 'free')"), "23505",
 			dbkit.ErrUnique},
@@ -175,26 +207,8 @@ func TestClassify(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
-			err := c.run(t, classifyOpen(t))
-			classifyMustCode(t, err, c.code)
 
-			got := postgres.Classify(err)
-
-			classifyMustCode(t, got, c.code)
-			for _, class := range classifyClasses {
-				if want := class == c.class; errors.Is(got, class) != want {
-					t.Errorf("errors.Is(Classify(%v), %v) = %v, want %v", err, class, !want, want)
-				}
-			}
-			if c.class == nil && got != err {
-				t.Errorf("Classify(%v) = %v, want the error unchanged", err, got)
-			}
-			if c.class != nil && got.Error() != c.class.Error()+": "+err.Error() {
-				t.Errorf("Classify().Error() = %q, want the class and the server message", got.Error())
-			}
-			if again := postgres.Classify(got); again != got {
-				t.Errorf("Classify(Classify()) = %v, want the classified error unchanged", again)
-			}
+			classifyCheck(t, c)
 		})
 	}
 }
