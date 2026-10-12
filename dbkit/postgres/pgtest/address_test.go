@@ -85,6 +85,7 @@ func TestCheckAddressRefusesEveryAddressNewRefuses(t *testing.T) {
 		{"a blank address", " \t", checkEmpty},
 		{"a bare at", "postgres://u:" + newSecret + "@ss@localhost:5434/postgres", newBareAt},
 		{"a keyword and value address", "host=localhost user=u password=" + newSecret, newNotURL},
+		{"a keyword and value address with a stray %", "host=localhost%zz user=u password=" + newSecret, newNotURL},
 		{"an address with another scheme", "mysql://u:" + newSecret + "@localhost/postgres", newUnparsable},
 		{"a URL that does not parse", "postgres://u:" + newSecret + "@localhost:port/postgres", newUnparsable},
 		{"an IPv6 literal host", "postgres://u:" + newSecret + "@[::1]:5434/postgres", newColonHost},
@@ -147,6 +148,7 @@ func TestCheckAddressAcceptsAnAddressNewTakes(t *testing.T) {
 		"postgres://u:p@localhost:5434/postgres?sslmode=disable&application_name=kept_option",
 		"postgresql://u:p@localhost:5434/postgres?sslmode=disable&application_name=kept_option",
 		"postgres://u:p@localhost:5434/postgres?sslmode=disable&application_name=pool_tests",
+		"postgres://u:p@localhost:5434/postgres?sslmode=disable&pool_app.tenant=1",
 	} {
 		if err := pgtest.CheckAddress(address); err != nil {
 			t.Errorf("CheckAddress() = %v, want nil for an address New takes", err)

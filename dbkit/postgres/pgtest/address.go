@@ -22,10 +22,10 @@ func CheckAddress(address string) error {
 	return err
 }
 
-// checkPoolKeys returns errPoolKey when params holds a key that starts with poolPrefix.
+// checkPoolKeys returns errPoolKey when params holds a key with no dot that starts with poolPrefix.
 func checkPoolKeys(params map[string]string) error {
 	for key := range params {
-		if strings.HasPrefix(key, poolPrefix) {
+		if strings.HasPrefix(key, poolPrefix) && !strings.Contains(key, ".") {
 			return errPoolKey
 		}
 	}
