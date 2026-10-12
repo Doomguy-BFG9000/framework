@@ -33,7 +33,9 @@ linters:
           allow:
             - $gostd
             - github.com/gopherium/framework/gonsole
-            - github.com/gopherium/gouncer
+            - github.com/gopherium/gouncer$
+            - github.com/gopherium/gouncer/authkit$
+            - github.com/gopherium/gouncer/authkit/postgres
             - github.com/jackc/pgx/v5
             - github.com/google/uuid
             - github.com/peterldowns/pgtestdb
