@@ -195,14 +195,18 @@ func (db testDB) noSessionLeft() {
 	}
 }
 
-// awaitSession returns once a session other than holder is in state on db, failing if ran ends first.
+// awaitSession returns once another session than holder's is in state on db, failing when ran ends or time runs out.
 func (db testDB) awaitSession(holder *pgx.Conn, ran <-chan error, state sessionState) {
 	db.t.Helper()
 	lookup := fmt.Sprintf(sessionLookup, state.column)
+	deadline := time.After(sessionBound)
 	for !db.found(lookup, int32(holder.PgConn().PID()), state.pattern) {
 		select {
 		case err := <-ran:
 			db.t.Fatalf("Run() = %v before a session had %s like %s", err, state.column, state.pattern)
+		case <-deadline:
+			db.t.Fatalf("no session had %s like %s within %v, want the step to reach it", state.column, state.pattern,
+				sessionBound)
 		case <-time.After(10 * time.Millisecond):
 		}
 	}
