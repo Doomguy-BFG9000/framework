@@ -64,6 +64,9 @@ func configOf(address string) (pgtestdb.Config, error) {
 	if err != nil {
 		return pgtestdb.Config{}, err
 	}
+	if err := checkPoolKeys(resolved.RuntimeParams); err != nil {
+		return pgtestdb.Config{}, err
+	}
 	user, password, _ := strings.Cut(url.UserPassword(server.User.Username(), resolved.Password).String(), ":")
 	return pgtestdb.Config{
 		DriverName: driverName,
