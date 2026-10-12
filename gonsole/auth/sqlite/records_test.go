@@ -50,7 +50,11 @@ func TestARecordKeepsItsTimeAsUTCMicrosecondsSinceTheEpoch(t *testing.T) {
 	after := time.Now()
 
 	kind := text(t, db, "SELECT typeof(applied_at) FROM gonsole_records")
-	stored := int64(count(t, db, "SELECT applied_at FROM gonsole_records"))
+	var stored int64
+	lookup := "SELECT applied_at FROM gonsole_records"
+	if err := db.QueryRowContext(t.Context(), lookup).Scan(&stored); err != nil {
+		t.Fatalf("%s: %v", lookup, err)
+	}
 	listed, err := store.Latest(t.Context(), 1)
 	if err != nil || len(listed) != 1 {
 		t.Fatalf("Latest() = %v, %v, want the one record", listed, err)
