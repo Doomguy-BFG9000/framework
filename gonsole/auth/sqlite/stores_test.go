@@ -3,7 +3,6 @@
 package sqlite_test
 
 import (
-	"errors"
 	"testing"
 
 	authkitsqlite "github.com/gopherium/gouncer/authkit/sqlite"
@@ -48,12 +47,14 @@ func TestTheStoresRunOnTheCallsOneHandleWithNothingToRelease(t *testing.T) {
 func TestTheStoresPassTheHandleFailureThroughUnchanged(t *testing.T) {
 	t.Parallel()
 
+	_, gonsoles := gonsole.Call{}.DB(t.Context())
+
 	_, _, missing := sqlite.Stores(t.Context(), gonsole.Call{})
 	_, _, describing := sqlite.Stores(t.Context(), gonsole.Call{Describe: true})
 
-	if missing == nil || missing.Error() != "gonsole: no database handle in this call" ||
-		!errors.Is(describing, gonsole.ErrDescribing) || describing != gonsole.ErrDescribing {
-		t.Errorf("Stores() answered %v with no handle and %v for a describing call, want gonsole's errors as they are",
-			missing, describing)
+	if gonsoles == nil || missing == nil || missing.Error() != gonsoles.Error() ||
+		describing != gonsole.ErrDescribing {
+		t.Errorf("Stores() answered %v with no handle and %v for a describing call, want %v and %v as they are",
+			missing, describing, gonsoles, gonsole.ErrDescribing)
 	}
 }
