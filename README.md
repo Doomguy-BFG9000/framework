@@ -27,6 +27,8 @@ need and ignore the rest.
   core commands, settings and compiled plugins.
 - [`gonsole/auth`](gonsole/auth/) offers the account commands of a program
   whose accounts live in gouncer's PostgreSQL or SQLite store.
+- [`gonsole/auth/postgres`](gonsole/auth/postgres/) runs those account
+  commands and their records on a program's PostgreSQL database.
 - [`gonsole/auth/sqlite`](gonsole/auth/sqlite/) runs those account
   commands and their records on a program's one SQLite handle.
 - [`gottext`](gottext/) reads, writes and syncs gettext catalogs for
