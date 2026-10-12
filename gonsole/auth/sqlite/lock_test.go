@@ -22,12 +22,7 @@ import (
 // migrationLock opens the migration lock file beside the main file of db.
 func migrationLock(t *testing.T, db *sql.DB) *os.File {
 	t.Helper()
-	var path string
-	lookup := "SELECT file FROM pragma_database_list WHERE name = 'main'"
-	if err := db.QueryRowContext(t.Context(), lookup).Scan(&path); err != nil {
-		t.Fatalf("%s: %v", lookup, err)
-	}
-	lock, err := os.OpenFile(path+".migrate.lock", os.O_RDWR|os.O_CREATE, 0o600)
+	lock, err := os.OpenFile(pathOf(t, db)+".migrate.lock", os.O_RDWR|os.O_CREATE, 0o600)
 	if err != nil {
 		t.Fatalf("opening the migration lock: %v", err)
 	}
