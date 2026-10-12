@@ -8,7 +8,7 @@ v0.x, minor releases may contain breaking changes.
 
 Releases of this module are tagged `gonsole/auth/postgres/vX.Y.Z`.
 
-## [Unreleased]
+## [0.1.0] - 2026-10-12
 
 ### Added
 
@@ -18,3 +18,5 @@ Releases of this module are tagged `gonsole/auth/postgres/vX.Y.Z`.
 - `NewRecordStore`, the record store of the `gonsole.records` table, which lists no record for a limit below zero.
 - A constraint, lock or serialization failure of the record store or the records step carries dbkit's error class, such as `dbkit.ErrUnique`.
 - An address pgx cannot parse fails `Stores` and the records step with one message that holds no part of the address.
+
+[0.1.0]: https://github.com/gopherium/framework/releases/tag/gonsole%2Fauth%2Fpostgres%2Fv0.1.0
