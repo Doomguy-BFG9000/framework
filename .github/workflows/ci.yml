@@ -14,7 +14,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        module: ["dbkit", "dbkit/sqlite", "mailkit", "goncierge", "gonsole", "pluginkit", "pluginkit/graphwire"]
+        module: ["dbkit", "dbkit/sqlite", "mailkit", "goncierge", "gonsole", "gonsole/auth/sqlite", "pluginkit", "pluginkit/graphwire"]
     defaults:
       run:
         working-directory: ${{ matrix.module }}
@@ -30,7 +30,7 @@ jobs:
             ${{ matrix.module }}/go.sum
       - run: go test -race -covermode=atomic -coverprofile=cover.out ./...
       - run: go vet ./...
-      - if: matrix.module == 'dbkit/sqlite'
+      - if: matrix.module == 'dbkit/sqlite' || matrix.module == 'gonsole/auth/sqlite'
         run: GOOS=darwin GOARCH=arm64 go vet ./... && GOOS=windows GOARCH=amd64 go vet ./...
 
   test-postgres:
@@ -99,7 +99,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        module: ["dbkit", "dbkit/postgres", "dbkit/sqlite", "mailkit", "goncierge", "gonsole", "gonsole/auth", "pluginkit", "pluginkit/graphwire"]
+        module: ["dbkit", "dbkit/postgres", "dbkit/sqlite", "mailkit", "goncierge", "gonsole", "gonsole/auth", "gonsole/auth/sqlite", "pluginkit", "pluginkit/graphwire"]
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
@@ -121,7 +121,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        module: ["dbkit", "dbkit/postgres", "dbkit/sqlite", "mailkit", "goncierge", "gonsole", "gonsole/auth", "pluginkit", "pluginkit/graphwire"]
+        module: ["dbkit", "dbkit/postgres", "dbkit/sqlite", "mailkit", "goncierge", "gonsole", "gonsole/auth", "gonsole/auth/sqlite", "pluginkit", "pluginkit/graphwire"]
     defaults:
       run:
         working-directory: ${{ matrix.module }}
