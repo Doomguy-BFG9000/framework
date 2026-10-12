@@ -29,16 +29,25 @@ linters:
         auth-purity:
           list-mode: strict
           files:
-            - "**/*.go"
+            - $all
+            - "!$test"
+          allow:
+            - $gostd
+            - github.com/gopherium/framework/gonsole
+            - github.com/gopherium/framework/dbkit$
+            - github.com/gopherium/framework/dbkit/sqlite$
+            - github.com/gopherium/gouncer/authkit/sqlite$
+        test-purity:
+          list-mode: strict
+          files:
+            - $test
           allow:
             - $gostd
             - github.com/gopherium/framework/gonsole
             - github.com/gopherium/framework/dbkit$
             - github.com/gopherium/framework/dbkit/sqlite
             - github.com/gopherium/gouncer$
-            - github.com/gopherium/gouncer/authkit$
-            - github.com/gopherium/gouncer/authkit/sqlite
-            - github.com/google/uuid
+            - github.com/gopherium/gouncer/authkit/sqlite$
         one-sqlite-driver:
           deny:
             - pkg: modernc.org/sqlite
