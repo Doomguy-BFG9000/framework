@@ -8,7 +8,7 @@ v0.x, minor releases may contain breaking changes.
 
 Releases of this module are tagged `gonsole/auth/sqlite/vX.Y.Z`.
 
-## [Unreleased]
+## [0.1.0] - 2026-10-12
 
 ### Added
 
@@ -17,3 +17,5 @@ Releases of this module are tagged `gonsole/auth/sqlite/vX.Y.Z`.
 - The records keep their own version table, `gonsole_goose_db_version`.
 - `NewRecordStore`, the record store of the `gonsole_records` table, whose arguments and flags must be valid JSON.
 - A busy, locked or constraint failure of the record store or the records step carries dbkit's error class.
+
+[0.1.0]: https://github.com/gopherium/framework/releases/tag/gonsole%2Fauth%2Fsqlite%2Fv0.1.0
