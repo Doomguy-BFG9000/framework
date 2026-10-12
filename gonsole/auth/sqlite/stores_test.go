@@ -19,28 +19,41 @@ var (
 	_               = auth.Config{Stores: sqlite.Stores}
 )
 
-func TestTheStoresRunOnTheCallsOneHandleWithNothingToRelease(t *testing.T) {
+func TestTheStoresComeWithNothingToRelease(t *testing.T) {
+	t.Parallel()
+
+	stores, release, err := sqlite.Stores(t.Context(), gonsole.Call{}.WithDB(withRecords(t)))
+
+	if err != nil || release != nil {
+		t.Fatalf("Stores() = a release %t, %v, want no release and no error", release != nil, err)
+	}
+	if stores.Accounts == nil || stores.Records == nil {
+		t.Errorf("Stores() = %+v, want both stores", stores)
+	}
+}
+
+func TestTheStoresRunOnTheCallsOneHandle(t *testing.T) {
 	t.Parallel()
 
 	db := withRecords(t)
 
-	stores, release, err := sqlite.Stores(t.Context(), gonsole.Call{}.WithDB(db))
+	stores, _, err := sqlite.Stores(t.Context(), gonsole.Call{}.WithDB(db))
 
-	if err != nil || release != nil || stores.Accounts == nil || stores.Records == nil {
-		t.Fatalf("Stores() = %v, a release %t, %v, want both stores and no release", stores, release != nil, err)
+	if err != nil {
+		t.Fatalf("Stores() error = %v, want nil", err)
 	}
-	user, err := gouncer.NewUser("maria@example.com", "Maria Perez", "correct horse battery")
+	user, err := gouncer.NewUser("maria@example.com", "Maria Perez", demoPassword)
 	if err != nil {
 		t.Fatalf("gouncer.NewUser() error = %v, want nil", err)
 	}
 	if err := stores.Accounts.CreateUser(t.Context(), user); err != nil {
 		t.Fatalf("CreateUser() error = %v, want nil", err)
 	}
-	held, err := stores.Records.Held(t.Context())
-	accounts := count(t, db, "SELECT count(*) FROM auth_users")
-	if err != nil || !held || accounts != 1 {
-		t.Errorf("the stores read the records as held %t with %v and wrote %d accounts, want both on the handle",
-			held, err, accounts)
+	if accounts := count(t, db, "SELECT count(*) FROM auth_users"); accounts != 1 {
+		t.Errorf("the account store wrote %d accounts on the handle, want 1", accounts)
+	}
+	if held, err := stores.Records.Held(t.Context()); err != nil || !held {
+		t.Errorf("the record store read the records as held %t with %v, want held on the handle", held, err)
 	}
 }
 
@@ -48,13 +61,17 @@ func TestTheStoresPassTheHandleFailureThroughUnchanged(t *testing.T) {
 	t.Parallel()
 
 	_, gonsoles := gonsole.Call{}.DB(t.Context())
+	if gonsoles == nil {
+		t.Fatal("gonsole.Call{}.DB() error = nil, want the failure of a call with no handle")
+	}
 
 	_, _, missing := sqlite.Stores(t.Context(), gonsole.Call{})
 	_, _, describing := sqlite.Stores(t.Context(), gonsole.Call{Describe: true})
 
-	if gonsoles == nil || missing == nil || missing.Error() != gonsoles.Error() ||
-		describing != gonsole.ErrDescribing {
-		t.Errorf("Stores() answered %v with no handle and %v for a describing call, want %v and %v as they are",
-			missing, describing, gonsoles, gonsole.ErrDescribing)
+	if missing == nil || missing.Error() != gonsoles.Error() {
+		t.Errorf("Stores() with no handle = %v, want %v as it is", missing, gonsoles)
+	}
+	if describing != gonsole.ErrDescribing {
+		t.Errorf("Stores() for a describing call = %v, want %v as it is", describing, gonsole.ErrDescribing)
 	}
 }

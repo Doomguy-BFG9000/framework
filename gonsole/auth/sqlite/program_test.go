@@ -6,6 +6,7 @@ import (
 	"context"
 	"database/sql"
 	"io"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -84,6 +85,16 @@ func seeded(t *testing.T) (string, *sql.DB) {
 		t.Fatalf("seeding the accounts: %v", err)
 	}
 	return pathOf(t, db), db
+}
+
+// wantPrinted fails t unless out, which command printed, names every part.
+func wantPrinted(t *testing.T, command, out string, parts ...string) {
+	t.Helper()
+	for _, part := range parts {
+		if !strings.Contains(out, part) {
+			t.Errorf("%s printed %q, want it to name %s", command, out, part)
+		}
+	}
 }
 
 // text returns the single text lookup answers on db.

@@ -21,12 +21,14 @@ func TestAnAppliedCommandRecordsOneRowNamingTheAccount(t *testing.T) {
 	got := testkit.Run(t, program(path, &opens), "", "account:role", "author@example.com", "editor", "-yes",
 		"-as", " Admin@Example.com ")
 
+	if got.Code != gonsole.ExitDone {
+		t.Fatalf("an applied account:role = %d with %q, want %d", got.Code, got.Stderr, gonsole.ExitDone)
+	}
 	admin := text(t, db, "SELECT id FROM auth_users WHERE email = 'admin@example.com'")
 	recorded := text(t, db, "SELECT actor || ' ' || command || ' ' || account_id FROM gonsole_records")
 	want := "admin@example.com account:role " + admin
-	if got.Code != gonsole.ExitDone || count(t, db, "SELECT count(*) FROM gonsole_records") != 1 || recorded != want {
-		t.Errorf("an applied account:role = %d with %q and the record %q, want %d and %q", got.Code, got.Stderr,
-			recorded, gonsole.ExitDone, want)
+	if records := count(t, db, "SELECT count(*) FROM gonsole_records"); records != 1 || recorded != want {
+		t.Errorf("an applied account:role left %d records and the record %q, want 1 and %q", records, recorded, want)
 	}
 }
 
@@ -54,11 +56,13 @@ func TestAccountRecordsListsTheRecordInTextAndInUTCJSON(t *testing.T) {
 	if err := json.Unmarshal([]byte(asJSON.Stdout), &document); err != nil || len(document.Records) != 1 {
 		t.Fatalf("account:records -json printed %q, %v, want one record", asJSON.Stdout, err)
 	}
+	wantPrinted(t, "account:records", listed.Stdout, "admin@example.com", "account:role")
 	first := document.Records[0]
-	if !strings.Contains(listed.Stdout, "admin@example.com") || !strings.Contains(listed.Stdout, "account:role") ||
-		first.Actor != "admin@example.com" || first.Command != "account:role" || !strings.HasSuffix(first.AppliedAt, "Z") {
-		t.Errorf("account:records printed %q and -json %+v, want the admin's role change at a UTC time",
-			listed.Stdout, first)
+	if first.Actor != "admin@example.com" || first.Command != "account:role" {
+		t.Errorf("account:records -json printed %+v, want the admin's role change", first)
+	}
+	if !strings.HasSuffix(first.AppliedAt, "Z") {
+		t.Errorf("account:records -json printed the time %q, want a UTC time", first.AppliedAt)
 	}
 }
 

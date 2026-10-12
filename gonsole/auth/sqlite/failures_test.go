@@ -5,6 +5,7 @@ package sqlite_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -30,9 +31,7 @@ func TestARepeatedRecordIDAnswersDbkitsUniqueClass(t *testing.T) {
 	t.Parallel()
 
 	store := sqlite.NewRecordStore(withRecords(t))
-	if err := store.Insert(t.Context(), roleChange()); err != nil {
-		t.Fatalf("Insert() error = %v, want nil", err)
-	}
+	mustInsert(t, store, roleChange())
 
 	err := store.Insert(t.Context(), roleChange())
 
@@ -92,7 +91,7 @@ func TestARecordThatListsBadlyFailsTheWholeList(t *testing.T) {
 
 			listed, err := sqlite.NewRecordStore(db).Latest(t.Context(), 10)
 
-			if listed != nil || err == nil || !strings.HasPrefix(err.Error(), "sqlite: list the records: ") {
+			if listed != nil || !strings.HasPrefix(fmt.Sprint(err), "sqlite: list the records: ") {
 				t.Errorf("Latest() over a record with %s = %v, %v, want no list and a failure under the action",
 					tc.name, listed, err)
 			}

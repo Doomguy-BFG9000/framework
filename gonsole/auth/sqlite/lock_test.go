@@ -78,7 +78,7 @@ func TestEachStepGivesUpOnAMigrationLockHeldPastItsWait(t *testing.T) {
 			waited := time.Since(start)
 
 			versions := count(t, db, "SELECT count(*) FROM sqlite_master WHERE name LIKE '%goose_db_version'")
-			if err == nil || !strings.Contains(err.Error(), "migration lock") || versions != 0 {
+			if !strings.Contains(fmt.Sprint(err), "migration lock") || versions != 0 {
 				t.Errorf("the %s step behind a held lock = %v with %d version tables, want the lock named and none",
 					step.Name, err, versions)
 			}

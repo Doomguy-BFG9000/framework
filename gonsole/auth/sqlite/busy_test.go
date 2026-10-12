@@ -5,6 +5,7 @@ package sqlite_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -43,9 +44,12 @@ func TestRecordWaitsNoLongerThanTheBusyTimeout(t *testing.T) {
 	err = auth.Record(cfg)(context.Background(), call, "account:disable")
 	waited := time.Since(start)
 
-	if err == nil || !strings.HasPrefix(err.Error(), "record account:disable: sqlite: insert a record: ") ||
-		!errors.Is(err, context.DeadlineExceeded) || errors.Is(err, dbkit.ErrBusy) {
+	if !strings.HasPrefix(fmt.Sprint(err), "record account:disable: sqlite: insert a record: ") ||
+		!errors.Is(err, context.DeadlineExceeded) {
 		t.Errorf("Record() behind a held write = %v, want the record's deadline under the insert", err)
+	}
+	if errors.Is(err, dbkit.ErrBusy) {
+		t.Errorf("Record() behind a held write = %v, want the record's deadline before the busy timeout", err)
 	}
 	if waited < cfg.RecordTimeout || waited >= 2*opts.BusyTimeout {
 		t.Errorf("Record() returned after %v, want at least the record timeout %v and under twice the busy timeout %v",

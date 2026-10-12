@@ -19,18 +19,24 @@ func roleChange() auth.Entry {
 		Args: []string{"maria@example.com", "editor"}, Flags: map[string]string{"yes": "true"}}
 }
 
+// within reports whether micros falls between the microseconds of from and to.
+func within(micros int64, from, to time.Time) bool {
+	return micros >= from.UnixMicro() && micros <= to.UnixMicro()
+}
+
 func TestALimitBelowZeroListsNoRecords(t *testing.T) {
 	t.Parallel()
 
 	store := sqlite.NewRecordStore(withRecords(t))
-	if err := store.Insert(t.Context(), roleChange()); err != nil {
-		t.Fatalf("Insert() error = %v, want nil", err)
-	}
+	mustInsert(t, store, roleChange())
 
 	listed, err := store.Latest(t.Context(), -1)
 
-	if err != nil || listed == nil || len(listed) != 0 {
-		t.Errorf("Latest(-1) = %v, %v, want an empty list, at most -1 records", listed, err)
+	if err != nil {
+		t.Fatalf("Latest(-1) error = %v, want nil", err)
+	}
+	if listed == nil || len(listed) != 0 {
+		t.Errorf("Latest(-1) = %#v, want an empty list, at most -1 records", listed)
 	}
 }
 
@@ -40,22 +46,16 @@ func TestARecordKeepsItsTimeAsUTCMicrosecondsSinceTheEpoch(t *testing.T) {
 	db := withRecords(t)
 	store := sqlite.NewRecordStore(db)
 	before := time.Now()
-	if err := store.Insert(t.Context(), roleChange()); err != nil {
-		t.Fatalf("Insert() error = %v, want nil", err)
-	}
+	mustInsert(t, store, roleChange())
 	after := time.Now()
 
-	var kind string
-	var stored int64
-	lookup := "SELECT typeof(applied_at), applied_at FROM gonsole_records"
-	if err := db.QueryRowContext(t.Context(), lookup).Scan(&kind, &stored); err != nil {
-		t.Fatalf("%s: %v", lookup, err)
-	}
+	kind := text(t, db, "SELECT typeof(applied_at) FROM gonsole_records")
+	stored := int64(count(t, db, "SELECT applied_at FROM gonsole_records"))
 	listed, err := store.Latest(t.Context(), 1)
 	if err != nil || len(listed) != 1 {
 		t.Fatalf("Latest() = %v, %v, want the one record", listed, err)
 	}
-	if kind != "integer" || stored < before.UnixMicro() || stored > after.UnixMicro() {
+	if kind != "integer" || !within(stored, before, after) {
 		t.Errorf("applied_at is %s %d, want an integer between %d and %d", kind, stored, before.UnixMicro(),
 			after.UnixMicro())
 	}

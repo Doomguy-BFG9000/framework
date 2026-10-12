@@ -36,10 +36,12 @@ func TestAuthorizeRefusesAnAccountItCannotLetThrough(t *testing.T) {
 			got := testkit.Run(t, program(path, &opens), "", "account:role", "author@example.com", "editor", "-yes",
 				"-as", tc.actor)
 
-			records := count(t, db, "SELECT count(*) FROM gonsole_records")
-			if got.Code != gonsole.ExitFailed || got.Stderr != tc.stderr || records != 0 {
-				t.Errorf("account:role as %s = %d with %q and %d records, want %d with %q and none", tc.actor,
-					got.Code, got.Stderr, records, gonsole.ExitFailed, tc.stderr)
+			if got.Code != gonsole.ExitFailed || got.Stderr != tc.stderr {
+				t.Errorf("account:role as %s = %d with %q, want %d with %q", tc.actor, got.Code, got.Stderr,
+					gonsole.ExitFailed, tc.stderr)
+			}
+			if records := count(t, db, "SELECT count(*) FROM gonsole_records"); records != 0 {
+				t.Errorf("account:role as %s left %d records, want none", tc.actor, records)
 			}
 		})
 	}

@@ -14,6 +14,7 @@ import (
 	"github.com/gopherium/framework/dbkit/sqlite/sqlitetest"
 
 	"github.com/gopherium/framework/gonsole"
+	"github.com/gopherium/framework/gonsole/auth"
 	"github.com/gopherium/framework/gonsole/auth/sqlite"
 )
 
@@ -61,6 +62,14 @@ func mustExec(t *testing.T, db *sql.DB, statement string, args ...any) {
 	t.Helper()
 	if _, err := db.ExecContext(t.Context(), statement, args...); err != nil {
 		t.Fatalf("%s: %v", statement, err)
+	}
+}
+
+// mustInsert inserts entry through store and fails t when it errs.
+func mustInsert(t *testing.T, store auth.RecordStore, entry auth.Entry) {
+	t.Helper()
+	if err := store.Insert(t.Context(), entry); err != nil {
+		t.Fatalf("Insert() error = %v, want nil", err)
 	}
 }
 

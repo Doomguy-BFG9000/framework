@@ -5,6 +5,7 @@ package sqlite_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"slices"
 	"strings"
 	"testing"
@@ -33,10 +34,13 @@ func TestBothStepsMigrateTheirOwnTablesUnderTheirOwnNames(t *testing.T) {
 	versions := count(t, db, "SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name IN "+
 		"('auth_goose_db_version', 'gonsole_goose_db_version')")
 	records := count(t, db, "SELECT max(version_id) FROM gonsole_goose_db_version")
-	if !slices.Equal(names, []string{"accounts", "records"}) || tables != 2 || versions != 2 || records != 1 {
-		t.Errorf("steps %v left %d of the 2 tables and %d of the 2 version tables, records at %d, "+
-			"want accounts then records, both tables, both version tables and records at 1", names, tables,
-			versions, records)
+	type state struct {
+		steps                     string
+		tables, versions, records int
+	}
+	got := state{strings.Join(names, " then "), tables, versions, records}
+	if want := (state{"accounts then records", 2, 2, 1}); got != want {
+		t.Errorf("both steps applied twice left %+v, want %+v", got, want)
 	}
 }
 
@@ -53,7 +57,7 @@ func TestEachStepRefusesLockSettingsAtZero(t *testing.T) {
 			err := step.Apply(t.Context(), "", db)
 
 			tables := count(t, db, "SELECT count(*) FROM sqlite_master WHERE name IN ('auth_users', 'gonsole_records')")
-			if err == nil || !strings.HasPrefix(err.Error(), prefixes[step.Name]) || tables != 0 {
+			if !strings.HasPrefix(fmt.Sprint(err), prefixes[step.Name]) || tables != 0 {
 				t.Errorf("the %s step with no lock settings = %v with %d tables, want an error under %q and no table",
 					step.Name, err, tables, prefixes[step.Name])
 			}
