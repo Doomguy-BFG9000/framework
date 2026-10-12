@@ -10,6 +10,10 @@ Releases of this module are tagged `dbkit/postgres/vX.Y.Z`.
 
 ## [Unreleased]
 
+### Added
+
+- `pgtest.CheckAddress`, which returns every refusal of `pgtest.New`, those of `CheckAddress` included, marked `dbkit.ErrAddress` and never echoing the address.
+
 ## [0.2.0] - 2026-10-10
 
 ### Added
