@@ -28,15 +28,15 @@ func migrationNumbers(t *testing.T, folder string) []string {
 	return numbers
 }
 
-func TestRecordsMigrationNumbersMatchGonsoleAuth(t *testing.T) {
+func TestRecordsMigrationNumbersMatchGonsoleAuthPostgres(t *testing.T) {
 	t.Parallel()
 
-	if _, err := os.Stat(filepath.Join("..", "go.mod")); errors.Is(err, os.ErrNotExist) {
-		t.Skip("gonsole/auth is not beside this module")
+	if _, err := os.Stat(filepath.Join("..", "postgres", "go.mod")); errors.Is(err, os.ErrNotExist) {
+		t.Skip("gonsole/auth/postgres is not beside this module")
 	}
 
 	sqliteNumbers := migrationNumbers(t, "migrations")
-	postgresNumbers := migrationNumbers(t, filepath.Join("..", "migrations"))
+	postgresNumbers := migrationNumbers(t, filepath.Join("..", "postgres", "migrations"))
 
 	if !slices.Equal(sqliteNumbers, postgresNumbers) {
 		t.Errorf("records migration numbers are %v on SQLite and %v on PostgreSQL, want the same",
