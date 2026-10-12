@@ -38,9 +38,12 @@ func TestNewSweptSweepsEachAddressOnceThenHandsOutADatabase(t *testing.T) {
 	keptBySameAddress := sweepExists(t, stale)
 	third := pgtest.NewSweptWithin(t, other, sweepAnyAge, migrator, scope)
 
-	if !sweptFirst || !keptBySameAddress || sweepExists(t, stale) {
-		t.Errorf("the stale instances were swept by the first call %t, kept by the second %t, swept by another "+
-			"address %t, want true, true and true", sweptFirst, keptBySameAddress, !sweepExists(t, stale))
+	if !sweptFirst || !keptBySameAddress {
+		t.Errorf("the stale instances were swept by the first call %t and kept by the second %t, want true and true",
+			sweptFirst, keptBySameAddress)
+	}
+	if sweepExists(t, stale) {
+		t.Error("the stale instance outlived the call on another address, want that call to sweep it")
 	}
 	for _, address := range []string{first, second, third} {
 		if got := newRows(t, address); got != 1 {
@@ -105,9 +108,12 @@ func TestNewSweptLogsAFailedSweepAndHandsOutADatabase(t *testing.T) {
 	logged := strings.Join(recorder.output, "\n")
 	want := "dbkit: the sweep of stale test databases failed, the tests go on: dbkit: Sweep needs a role that may run " +
 		"pg_stat_file"
-	if recorder.message != "" || address == "" || !strings.Contains(logged, want) {
-		t.Errorf("NewSwept() failed the test with %q, returned %q and logged %q, want no failure, a database and %q",
-			recorder.message, address, logged, want)
+	if recorder.message != "" || address == "" {
+		t.Errorf("NewSwept() failed the test with %q and returned %q, want no failure and a database",
+			recorder.message, address)
+	}
+	if !strings.Contains(logged, want) {
+		t.Errorf("NewSwept() logged %q, want %q", logged, want)
 	}
 }
 
