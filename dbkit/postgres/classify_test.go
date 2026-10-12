@@ -24,9 +24,13 @@ CREATE TABLE classify_rows (
 	amount integer CHECK (amount >= 0)
 );
 CREATE TABLE classify_locks (id integer PRIMARY KEY, n integer NOT NULL);
+CREATE TABLE classify_kept (id integer PRIMARY KEY);
+CREATE TABLE classify_keepers (kept integer REFERENCES classify_kept (id) ON DELETE RESTRICT ON UPDATE RESTRICT);
 INSERT INTO classify_parents VALUES (1);
 INSERT INTO classify_rows VALUES (1, 'taken', 1, 0);
 INSERT INTO classify_locks VALUES (1, 0), (2, 0);
+INSERT INTO classify_kept VALUES (1);
+INSERT INTO classify_keepers VALUES (1);
 `
 
 // classifyClasses lists every dbkit error class.
@@ -193,6 +197,9 @@ func TestClassify(t *testing.T) {
 		{"foreign key", classifyExec("INSERT INTO classify_rows VALUES (3, 'orphan', 99, 0)"), "23503",
 			dbkit.ErrForeignKey},
 		{"a delete a foreign key stops", classifyExec("DELETE FROM classify_parents WHERE id = 1"), "23503",
+			dbkit.ErrForeignKey},
+		{"a restricted delete", classifyExec("DELETE FROM classify_kept WHERE id = 1"), "23001", dbkit.ErrForeignKey},
+		{"a restricted update", classifyExec("UPDATE classify_kept SET id = 2 WHERE id = 1"), "23001",
 			dbkit.ErrForeignKey},
 		{"not null", classifyExec("INSERT INTO classify_rows (id, code) VALUES (4, NULL)"), "23502", dbkit.ErrNotNull},
 		{"check", classifyExec("INSERT INTO classify_rows VALUES (5, 'negative', 1, -1)"), "23514", dbkit.ErrCheck},
