@@ -18,6 +18,10 @@ Releases of this module are tagged `dbkit/postgres/vX.Y.Z`.
 
 - `pgtest.New` and `pgtest.NewSwept` refuse any `pool_` key in the server address or its service file.
 
+### Fixed
+
+- `pgtest.NewSwept` checks the address before it sweeps, so a refused address never connects to the server.
+
 ## [0.2.0] - 2026-10-10
 
 ### Added
