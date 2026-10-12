@@ -33,7 +33,8 @@ linters:
             - "!$test"
           allow:
             - $gostd
-            - github.com/gopherium/framework/gonsole
+            - github.com/gopherium/framework/gonsole$
+            - github.com/gopherium/framework/gonsole/auth$
             - github.com/gopherium/framework/dbkit$
             - github.com/gopherium/framework/dbkit/sqlite$
             - github.com/gopherium/gouncer/authkit/sqlite$
@@ -43,7 +44,11 @@ linters:
             - $test
           allow:
             - $gostd
-            - github.com/gopherium/framework/gonsole
+            - github.com/gopherium/framework/gonsole$
+            - github.com/gopherium/framework/gonsole/auth$
+            - github.com/gopherium/framework/gonsole/auth/recordstest$
+            - github.com/gopherium/framework/gonsole/auth/sqlite$
+            - github.com/gopherium/framework/gonsole/testkit$
             - github.com/gopherium/framework/dbkit$
             - github.com/gopherium/framework/dbkit/sqlite
             - github.com/gopherium/gouncer$
