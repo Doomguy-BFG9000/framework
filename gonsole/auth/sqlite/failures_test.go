@@ -18,10 +18,6 @@ import (
 // errPlanted is the failure a chosen statement answers with.
 var errPlanted = errors.New("planted failure")
 
-// plantRow stores a records row with every column given, past the store.
-const plantRow = "INSERT INTO gonsole_records (id, applied_at, actor, command, args, flags) " +
-	"VALUES (?, ?, 'admin@example.com', 'account:role', ?, ?)"
-
 // wantUnder fails t unless err matches want under the action the store names.
 func wantUnder(t *testing.T, err, want error, action string) {
 	t.Helper()
@@ -92,7 +88,7 @@ func TestARecordThatListsBadlyFailsTheWholeList(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			db := withRecords(t)
-			mustExec(t, db, plantRow, recordID, tc.appliedAt, tc.args, "{}")
+			mustExec(t, db, insertRecord, recordID, tc.appliedAt, "admin@example.com", "account:role", tc.args, "{}")
 
 			listed, err := sqlite.NewRecordStore(db).Latest(t.Context(), 10)
 

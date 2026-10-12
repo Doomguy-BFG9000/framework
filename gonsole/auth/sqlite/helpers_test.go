@@ -17,6 +17,10 @@ import (
 	"github.com/gopherium/framework/gonsole/auth/sqlite"
 )
 
+// insertRecord stores a records row with every column but account_id, past the record store.
+const insertRecord = "INSERT INTO gonsole_records (id, applied_at, actor, command, args, flags) " +
+	"VALUES (?, ?, ?, ?, ?, ?)"
+
 // testMigrate is how every test run of a schema step waits for the migration lock.
 var testMigrate = sqlite.MigrateOptions{LockWait: 5 * time.Second, LockPoll: 10 * time.Millisecond}
 

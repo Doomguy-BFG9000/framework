@@ -17,10 +17,6 @@ import (
 	"github.com/gopherium/framework/gonsole/auth/sqlite"
 )
 
-// insertRecord stores a record row with the given values for the columns that have no default.
-const insertRecord = "INSERT INTO gonsole_records (id, applied_at, actor, command, args, flags) " +
-	"VALUES (?, ?, ?, ?, ?, ?)"
-
 func TestBothStepsMigrateTheirOwnTablesUnderTheirOwnNames(t *testing.T) {
 	t.Parallel()
 
@@ -44,17 +40,24 @@ func TestBothStepsMigrateTheirOwnTablesUnderTheirOwnNames(t *testing.T) {
 	}
 }
 
-func TestTheRecordsStepRefusesLockSettingsAtZero(t *testing.T) {
+func TestEachStepRefusesLockSettingsAtZero(t *testing.T) {
 	t.Parallel()
 
-	db := sqlitetest.Open(t, testOptions())
+	prefixes := map[string]string{"accounts": "sqlite: apply migrations: ",
+		"records": "sqlite: apply the records schema: "}
+	for _, step := range steps(sqlite.MigrateOptions{}) {
+		t.Run(step.Name, func(t *testing.T) {
+			t.Parallel()
+			db := sqlitetest.Open(t, testOptions())
 
-	err := sqlite.RecordMigration(sqlite.MigrateOptions{}).Apply(t.Context(), "", db)
+			err := step.Apply(t.Context(), "", db)
 
-	tables := count(t, db, "SELECT count(*) FROM sqlite_master WHERE name = 'gonsole_records'")
-	if err == nil || !strings.HasPrefix(err.Error(), "sqlite: apply the records schema: ") || tables != 0 {
-		t.Errorf("the records step with no lock settings = %v with %d records tables, want a refusal and none",
-			err, tables)
+			tables := count(t, db, "SELECT count(*) FROM sqlite_master WHERE name IN ('auth_users', 'gonsole_records')")
+			if err == nil || !strings.HasPrefix(err.Error(), prefixes[step.Name]) || tables != 0 {
+				t.Errorf("the %s step with no lock settings = %v with %d tables, want an error under %q and no table",
+					step.Name, err, tables, prefixes[step.Name])
+			}
+		})
 	}
 }
 
