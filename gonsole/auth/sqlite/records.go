@@ -60,9 +60,9 @@ func (r recordStore) insert(ctx context.Context, entry auth.Entry, appliedAt tim
 	return failed("insert a record", err)
 }
 
-// Latest returns the newest entries first, at most limit of them, and an empty list for none.
+// Latest returns the newest entries first, at most limit of them, and an empty list for none or a limit below zero.
 func (r recordStore) Latest(ctx context.Context, limit int) ([]auth.Entry, error) {
-	rows, err := r.db.QueryContext(ctx, latestRecords, limit)
+	rows, err := r.db.QueryContext(ctx, latestRecords, max(limit, 0))
 	if err != nil {
 		return nil, failed("list the records", err)
 	}

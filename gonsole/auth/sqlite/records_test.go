@@ -19,6 +19,21 @@ func roleChange() auth.Entry {
 		Args: []string{"maria@example.com", "editor"}, Flags: map[string]string{"yes": "true"}}
 }
 
+func TestALimitBelowZeroListsNoRecords(t *testing.T) {
+	t.Parallel()
+
+	store := sqlite.NewRecordStore(withRecords(t))
+	if err := store.Insert(t.Context(), roleChange()); err != nil {
+		t.Fatalf("Insert() error = %v, want nil", err)
+	}
+
+	listed, err := store.Latest(t.Context(), -1)
+
+	if err != nil || listed == nil || len(listed) != 0 {
+		t.Errorf("Latest(-1) = %v, %v, want an empty list, at most -1 records", listed, err)
+	}
+}
+
 func TestARecordKeepsItsTimeAsUTCMicrosecondsSinceTheEpoch(t *testing.T) {
 	t.Parallel()
 
