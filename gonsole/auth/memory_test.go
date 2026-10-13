@@ -146,7 +146,7 @@ func newestFirst(a, b auth.Entry) int {
 // worlds holds every live world by its address.
 var worlds sync.Map
 
-// addresses counts the worlds made so far, so each takes an address of its own.
+// addresses counts the worlds made so far.
 var addresses atomic.Int64
 
 // fresh registers an empty world under an address of its own, dropped when the test ends, and returns the address.
