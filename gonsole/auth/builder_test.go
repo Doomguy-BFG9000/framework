@@ -17,7 +17,7 @@ import (
 	"github.com/gopherium/framework/gonsole/testkit"
 )
 
-// unreachable is a database address no world answers at, so a run that builds its stores from the setting fails.
+// unreachable is a database address no world answers at.
 const unreachable = "memory://unreachable"
 
 // The errors a failing builder, record store or release answers.
@@ -132,6 +132,68 @@ func TestABuilderFailureReachesEveryCaller(t *testing.T) {
 			t.Parallel()
 
 			got := testkit.Run(t, tt.p, "", tt.args...)
+
+			if got.Code != gonsole.ExitFailed || got.Stderr != tt.want {
+				t.Errorf("code %d, stderr %q, want 1 and %q", got.Code, got.Stderr, tt.want)
+			}
+		})
+	}
+}
+
+// noStores is the failure of every caller whose config holds a nil Stores.
+const noStores = "gonsole/auth: Config.Stores is nil, " +
+	"set it to the Stores of gonsole/auth/postgres or gonsole/auth/sqlite"
+
+func TestEveryCallerRefusesAConfigWithoutStores(t *testing.T) {
+	t.Parallel()
+
+	cfg := limited(50)
+	cfg.Stores = nil
+	purge := []string{"report:purge", "-as", "admin@example.com"}
+	tests := []struct {
+		name  string
+		build func(address string) gonsole.Program
+		stdin string
+		args  []string
+		want  string
+	}{
+		{"Authorize", func(address string) gonsole.Program {
+			return authorizing(address, cfg, nil, command("report:purge"))
+		}, "", purge, "myapp: " + noStores + "\n"},
+		{"Record", func(address string) gonsole.Program {
+			return recording(address, cfg, nil, command("report:purge"))
+		}, "", purge, "myapp: record report:purge: " + noStores + "\n"},
+		{"account:records", func(address string) gonsole.Program {
+			return recording(address, cfg, nil, auth.Records(cfg))
+		}, "", []string{"account:records"}, "myapp: " + noStores + "\n"},
+		{"account:list", func(address string) gonsole.Program {
+			return recording(address, cfg, nil, auth.List(cfg))
+		}, "", []string{"account:list"}, "myapp: " + noStores + "\n"},
+		{"account:create-admin", func(address string) gonsole.Program {
+			return program(address, auth.CreateAdmin(cfg))
+		}, demoPassword + "\n", creating("admin"), migratedLine + "myapp: " + noStores + "\n"},
+		{"account:grant-role", func(address string) gonsole.Program {
+			return program(address, auth.GrantRole(cfg))
+		}, "", []string{"account:grant-role", "-role", "editor", "-yes", "-as", "admin@example.com"},
+			migratedLine + "myapp: " + noStores + "\n"},
+		{"account:role", func(address string) gonsole.Program {
+			return program(address, auth.SetRole(cfg))
+		}, "", []string{"account:role", "editor@example.com", "author", "-yes", "-as", "admin@example.com"},
+			"myapp: " + noStores + "\n"},
+		{"account:disable", func(address string) gonsole.Program {
+			return program(address, auth.Disable(cfg))
+		}, "", []string{"account:disable", "editor@example.com", "-yes", "-as", "admin@example.com"},
+			"myapp: " + noStores + "\n"},
+		{"account:enable", func(address string) gonsole.Program {
+			return program(address, auth.Enable(cfg))
+		}, "", []string{"account:enable", "editor@example.com", "-yes", "-as", "admin@example.com"},
+			"myapp: " + noStores + "\n"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := testkit.Run(t, tt.build(fresh(t)), tt.stdin, tt.args...)
 
 			if got.Code != gonsole.ExitFailed || got.Stderr != tt.want {
 				t.Errorf("code %d, stderr %q, want 1 and %q", got.Code, got.Stderr, tt.want)
