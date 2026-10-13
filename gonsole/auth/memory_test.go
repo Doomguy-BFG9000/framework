@@ -52,7 +52,7 @@ type memoryAccounts struct {
 // GrantRoleToRoleless answers the end of ctx or grantErr first, the grant of the store otherwise.
 func (a *memoryAccounts) GrantRoleToRoleless(ctx context.Context, role string) (int64, error) {
 	if err := ctx.Err(); err != nil {
-		return 0, err
+		return 0, fmt.Errorf("grant role: %w", err)
 	}
 	if a.grantErr != nil {
 		return 0, a.grantErr
@@ -256,15 +256,16 @@ func disabling(email string) change {
 	}
 }
 
-// inviting returns the change that adds an account at email that was invited and never activated.
-func inviting(email string) change {
+// unconfirmed returns the change that adds an account at email holding role and a password but never activated.
+func unconfirmed(email, role string) change {
 	return func(t *testing.T, store *memoryAccounts) {
 		t.Helper()
-		invited, err := gouncer.NewInvitedUser(email, "Maria Perez")
+		user, err := gouncer.NewUser(email, "Maria Perez", demoPassword)
 		if err != nil {
-			t.Fatalf("NewInvitedUser() = %v", err)
+			t.Fatalf("NewUser() = %v", err)
 		}
-		if err := store.CreateUser(t.Context(), invited); err != nil {
+		user.Confirmed, user.Role = false, role
+		if err := store.CreateUser(t.Context(), user); err != nil {
 			t.Fatalf("CreateUser() = %v", err)
 		}
 	}

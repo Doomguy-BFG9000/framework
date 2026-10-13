@@ -49,6 +49,15 @@ func withRoleless(t *testing.T, count int) string {
 	return address
 }
 
+// grantedRole returns the role of a-roleless@example.com, empty for a world made with no roleless account.
+func grantedRole(t *testing.T, address string, roleless int) string {
+	t.Helper()
+	if roleless == 0 {
+		return ""
+	}
+	return account(t, storeAt(t, address), "a-roleless@example.com").Role
+}
+
 func TestGrantRoleGivesTheRoleOnlyWithYes(t *testing.T) {
 	t.Parallel()
 
@@ -84,8 +93,8 @@ func TestGrantRoleGivesTheRoleOnlyWithYes(t *testing.T) {
 			if got != want {
 				t.Fatalf("Run() = %+v, want %+v", got, want)
 			}
-			if held, err := storeAt(t, address).UserByEmail(t.Context(), "a-roleless@example.com"); held.Role != tc.role {
-				t.Errorf("role = %q, %v, want %q", held.Role, err, tc.role)
+			if role := grantedRole(t, address, tc.roleless); role != tc.role {
+				t.Errorf("role = %q, want %q", role, tc.role)
 			}
 			if held := account(t, storeAt(t, address), "admin@example.com"); held.Role != "admin" {
 				t.Errorf("an account holding a role now holds %q, want admin kept", held.Role)
@@ -280,7 +289,7 @@ func TestGrantRoleWritesUnderTheCallsContext(t *testing.T) {
 		strings.NewReader(""), &stdout, &stderr)
 
 	got := testkit.Result{Code: code, Stdout: stdout.String(), Stderr: stderr.String()}
-	want := testkit.Result{Code: gonsole.ExitFailed, Stderr: migratedLine + "myapp: context canceled\n"}
+	want := testkit.Result{Code: gonsole.ExitFailed, Stderr: migratedLine + "myapp: grant role: context canceled\n"}
 	if got != want {
 		t.Errorf("Run() = %+v, want %+v: exit 1, nothing granted and the ended context", got, want)
 	}

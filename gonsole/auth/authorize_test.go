@@ -67,9 +67,8 @@ func TestAuthorizeRefusesAnActorItCannotLetThrough(t *testing.T) {
 			"myapp: no account answers to nobody@example.com\n"},
 		{"a disabled account", []change{disabling("admin@example.com")},
 			"admin@example.com", "myapp: the account admin@example.com is disabled\n"},
-		{"an account never activated", []change{inviting("invited@example.com"),
-			holding("invited@example.com", "admin")},
-			"invited@example.com", "myapp: the account invited@example.com was never activated\n"},
+		{"an account never activated", []change{unconfirmed("unconfirmed@example.com", "admin")},
+			"unconfirmed@example.com", "myapp: the account unconfirmed@example.com was never activated\n"},
 		{"an account holding no role", []change{holding("author@example.com", "")},
 			"author@example.com", "myapp: the account author@example.com holds no role, so it lacks manage_users\n"},
 	}
