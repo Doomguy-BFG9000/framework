@@ -29,18 +29,29 @@ linters:
         auth-purity:
           list-mode: strict
           files:
-            - "**/*.go"
+            - $all
+            - "!$test"
           allow:
             - $gostd
-            - github.com/gopherium/framework/gonsole
+            - github.com/gopherium/framework/gonsole$
+            - github.com/gopherium/framework/gonsole/auth$
+            - github.com/gopherium/gouncer$
+            - github.com/gopherium/gouncer/authkit$
+            - github.com/google/uuid$
+        test-purity:
+          list-mode: strict
+          files:
+            - $test
+          allow:
+            - $gostd
+            - github.com/gopherium/framework/gonsole$
+            - github.com/gopherium/framework/gonsole/auth$
+            - github.com/gopherium/framework/gonsole/auth/recordstest$
+            - github.com/gopherium/framework/gonsole/testkit$
             - github.com/gopherium/gouncer$
             - github.com/gopherium/gouncer/authkit$
             - github.com/gopherium/gouncer/authkit/testkit$
-            - github.com/gopherium/gouncer/authkit/postgres
-            - github.com/jackc/pgx/v5
-            - github.com/google/uuid
-            - github.com/peterldowns/pgtestdb
-            - github.com/pressly/goose/v3
+            - github.com/google/uuid$
     forbidigo:
       analyze-types: true
       forbid:
