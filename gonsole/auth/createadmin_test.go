@@ -5,7 +5,9 @@ package auth_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"slices"
+	"sync/atomic"
 	"testing"
 
 	"github.com/gopherium/framework/gonsole"
@@ -31,9 +33,6 @@ Flags:
 // migratedLine is the line the account schema step writes before a command that asks for it.
 const migratedLine = "migrated accounts\n"
 
-// schemaHeld reports whether the database holds the schema its one argument names.
-const schemaHeld = "SELECT EXISTS (SELECT FROM pg_namespace WHERE nspname = $1)"
-
 // creating returns the arguments that create maria.perez@example.com under role.
 func creating(role string) []string {
 	return []string{"account:create-admin", "-email", "maria.perez@example.com", "-name", "Maria Perez", "-role", role}
@@ -42,15 +41,25 @@ func creating(role string) []string {
 func TestCreateAdminCreatesAnAccountAfterTheSchema(t *testing.T) {
 	t.Parallel()
 
-	address := empty(t)
+	address := fresh(t)
 	var reads rolesRead
+	var before atomic.Int32
+	before.Store(-1)
+	cfg := config(&reads, "")
+	cfg.Stores = func(ctx context.Context, call gonsole.Call) (auth.Stores, func(context.Context) error, error) {
+		before.Store(worldAt(t, address).migrations.Load())
+		return memoryStores(ctx, call)
+	}
 
-	got := testkit.Run(t, program(address, auth.CreateAdmin(config(&reads, ""))), demoPassword+"\n", creating("admin")...)
+	got := testkit.Run(t, program(address, auth.CreateAdmin(cfg)), demoPassword+"\n", creating("admin")...)
 
 	want := testkit.Result{Code: gonsole.ExitDone, Stdout: "Password: created user maria.perez@example.com\n",
 		Stderr: migratedLine}
 	if got != want {
 		t.Fatalf("Run() = %+v, want %+v", got, want)
+	}
+	if ran := before.Load(); ran != 1 {
+		t.Errorf("the accounts step ran %d times before the account, want once", ran)
 	}
 	if held := account(t, storeAt(t, address), "maria.perez@example.com"); held.Role != "admin" ||
 		held.Name != "Maria Perez" {
@@ -123,7 +132,7 @@ func TestCreateAdminRefusesAMissingFlagBeforeAnySchemaStep(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			address := empty(t)
+			address := fresh(t)
 			var reads rolesRead
 
 			got := testkit.Run(t, program(address, auth.CreateAdmin(config(&reads, ""))), "", tc.args...)
@@ -134,8 +143,8 @@ func TestCreateAdminRefusesAMissingFlagBeforeAnySchemaStep(t *testing.T) {
 			if reads.count != 0 {
 				t.Errorf("roles read %d times, want none", reads.count)
 			}
-			if found(t, address, schemaHeld, "auth") {
-				t.Error("the account schema exists, want a bare database")
+			if ran := worldAt(t, address).migrations.Load(); ran != 0 {
+				t.Errorf("the accounts step ran %d times, want a bare database", ran)
 			}
 		})
 	}
@@ -147,7 +156,7 @@ func TestCreateAdminTakesARoleThePluginsDeclare(t *testing.T) {
 	address := migrated(t)
 	cfg := auth.Config{Roles: func(context.Context, gonsole.Call) (auth.Roles, error) {
 		return auth.Roles{Known: append(slices.Clone(vocabulary.Known), "superadmin"), Privileged: vocabulary.Privileged}, nil
-	}}
+	}, Stores: memoryStores}
 
 	got := testkit.Run(t, program(address, auth.CreateAdmin(cfg)), demoPassword+"\n", creating("superadmin")...)
 
@@ -164,7 +173,7 @@ func TestCreateAdminFailsWhenTheRolesCannotBeRead(t *testing.T) {
 
 	cfg := auth.Config{Roles: func(context.Context, gonsole.Call) (auth.Roles, error) {
 		return auth.Roles{}, errors.New("the plugin table is locked")
-	}}
+	}, Stores: memoryStores}
 
 	got := testkit.Run(t, program(migrated(t), auth.CreateAdmin(cfg)), demoPassword+"\n", creating("admin")...)
 
@@ -174,30 +183,35 @@ func TestCreateAdminFailsWhenTheRolesCannotBeRead(t *testing.T) {
 	}
 }
 
-func TestCreateAdminNamesNoRoleWhenTheProgramDeclaresNone(t *testing.T) {
-	t.Parallel()
+// unknownRole is one role account:create-admin refuses and the alternatives its refusal names.
+type unknownRole struct {
+	role, alternatives string
+}
 
-	cfg := auth.Config{Roles: func(context.Context, gonsole.Call) (auth.Roles, error) { return auth.Roles{}, nil }}
+// refusesUnknownRole runs account:create-admin under refused.role over a program declaring known and wants it refused.
+func refusesUnknownRole(t *testing.T, known []string, refused unknownRole) {
+	t.Helper()
+	cfg := auth.Config{Roles: func(context.Context, gonsole.Call) (auth.Roles, error) {
+		return auth.Roles{Known: known}, nil
+	}, Stores: memoryStores}
 
-	got := testkit.Run(t, program(migrated(t), auth.CreateAdmin(cfg)), "", creating("admin")...)
+	got := testkit.Run(t, program(migrated(t), auth.CreateAdmin(cfg)), "", creating(refused.role)...)
 
-	want := migratedLine + "myapp: unknown role \"admin\", want a role the program declares\n\n" + createPage
+	want := migratedLine + fmt.Sprintf("myapp: unknown role %q, want %s\n\n", refused.role, refused.alternatives) +
+		createPage
 	if got.Code != gonsole.ExitMisused || got.Stderr != want {
 		t.Errorf("Run() = %+v, want exit 2 and %q", got, want)
 	}
 }
 
+func TestCreateAdminNamesNoRoleWhenTheProgramDeclaresNone(t *testing.T) {
+	t.Parallel()
+
+	refusesUnknownRole(t, nil, unknownRole{"admin", "a role the program declares"})
+}
+
 func TestCreateAdminNamesTheOneRoleTheProgramDeclares(t *testing.T) {
 	t.Parallel()
 
-	cfg := auth.Config{Roles: func(context.Context, gonsole.Call) (auth.Roles, error) {
-		return auth.Roles{Known: []string{"admin"}}, nil
-	}}
-
-	got := testkit.Run(t, program(migrated(t), auth.CreateAdmin(cfg)), "", creating("owner")...)
-
-	want := migratedLine + "myapp: unknown role \"owner\", want admin\n\n" + createPage
-	if got.Code != gonsole.ExitMisused || got.Stderr != want {
-		t.Errorf("Run() = %+v, want exit 2 and %q", got, want)
-	}
+	refusesUnknownRole(t, []string{"admin"}, unknownRole{"owner", "admin"})
 }

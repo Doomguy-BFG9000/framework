@@ -1,4 +1,4 @@
-name: gonsole-auth
+name: dbkit-postgres
 
 services:
   postgres:

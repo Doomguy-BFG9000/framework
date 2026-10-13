@@ -34,7 +34,7 @@ func reaching() auth.Config {
 	return cfg
 }
 
-// managed returns the address of a recorded database that also holds manager@example.com under manager.
+// managed returns the address of a recorded world that also holds manager@example.com under manager.
 func managed(t *testing.T) string {
 	t.Helper()
 	address := recorded(t)
@@ -45,27 +45,17 @@ func managed(t *testing.T) string {
 	return address
 }
 
-// overseen returns a program over the database at address whose account commands auth.Authorize checks.
+// overseen returns a program over the world at address whose account commands auth.Authorize checks.
 func overseen(address string) gonsole.Program {
 	return authorizing(address, reaching(), nil, auth.Commands(reaching())...)
 }
 
-// trusting returns a program over the database at address whose own check lets every acting account through.
+// trusting returns a program over the world at address whose own check lets every acting account through.
 func trusting(address string) gonsole.Program {
 	return recording(address, reaching(), nil, auth.Commands(reaching())...)
 }
 
-// holding returns the statement that puts the account at email under role.
-func holding(email, role string) string {
-	return fmt.Sprintf("UPDATE auth.users SET role = '%s' WHERE email = '%s'", role, email)
-}
-
-// disabling returns the statement that disables the account at email.
-func disabling(email string) string {
-	return fmt.Sprintf("UPDATE auth.users SET disabled = true WHERE email = '%s'", email)
-}
-
-// standingOf returns the role and the standing of the account at email in the database at address.
+// standingOf returns the role and the standing of the account at email in the world at address.
 func standingOf(t *testing.T, address, email string) string {
 	t.Helper()
 	held := account(t, storeAt(t, address), email)
@@ -94,7 +84,7 @@ func TestAccountCommandsApplyAChangeWithinTheReachOfTheActingAccount(t *testing.
 
 	tests := []struct {
 		name   string
-		setup  []string
+		setup  []change
 		over   func(address string) gonsole.Program
 		actor  string
 		args   []string
@@ -104,25 +94,25 @@ func TestAccountCommandsApplyAChangeWithinTheReachOfTheActingAccount(t *testing.
 			[]string{"account:role", "author@example.com", "manager"}, "set author@example.com to manager\n"},
 		{"the manager disables the author", nil, overseen, "manager@example.com",
 			[]string{"account:disable", "author@example.com"}, "disabled author@example.com\n"},
-		{"the manager enables a disabled author", []string{disabling("author@example.com")}, overseen,
+		{"the manager enables a disabled author", []change{disabling("author@example.com")}, overseen,
 			"manager@example.com", []string{"account:enable", "author@example.com"}, "enabled author@example.com\n"},
-		{"the manager grants author", []string{holding("editor@example.com", "")}, overseen, "manager@example.com",
+		{"the manager grants author", []change{holding("editor@example.com", "")}, overseen, "manager@example.com",
 			[]string{"account:grant-role", "-role", "author"}, "granted author to 1 account\n"},
-		{"the manager changes an account with no role", []string{holding("editor@example.com", "")}, overseen,
+		{"the manager changes an account with no role", []change{holding("editor@example.com", "")}, overseen,
 			"manager@example.com", []string{"account:role", "editor@example.com", "author"},
 			"set editor@example.com to author\n"},
 		{"the manager changes an account whose stored role the roles leave out",
-			[]string{holding("editor@example.com", "guest")}, overseen, "manager@example.com",
+			[]change{holding("editor@example.com", "guest")}, overseen, "manager@example.com",
 			[]string{"account:disable", "editor@example.com"}, "disabled editor@example.com\n"},
-		{"the manager disables a second manager", []string{holding("author@example.com", "manager")}, overseen,
+		{"the manager disables a second manager", []change{holding("author@example.com", "manager")}, overseen,
 			"manager@example.com", []string{"account:disable", "author@example.com"}, "disabled author@example.com\n"},
 		{"the admin sets the editor to admin", nil, overseen, "admin@example.com",
 			[]string{"account:role", "editor@example.com", "admin"}, "set editor@example.com to admin\n"},
-		{"the admin demotes a second admin", []string{holding("editor@example.com", "admin")}, overseen,
+		{"the admin demotes a second admin", []change{holding("editor@example.com", "admin")}, overseen,
 			"admin@example.com", []string{"account:role", "editor@example.com", "author"},
 			"set editor@example.com to author\n"},
 		{"an actor with no role gives itself author under the program's own check",
-			[]string{holding("manager@example.com", "")}, trusting, "manager@example.com",
+			[]change{holding("manager@example.com", "")}, trusting, "manager@example.com",
 			[]string{"account:grant-role", "-role", "author"}, "granted author to 1 account\n"},
 	}
 	for _, tt := range tests {
@@ -160,7 +150,7 @@ func TestAccountCommandsRefuseAChangeBeyondTheReachOfTheActingAccount(t *testing
 
 	tests := []struct {
 		name     string
-		setup    []string
+		setup    []change
 		args     []string
 		target   string
 		migrated string
@@ -179,10 +169,10 @@ func TestAccountCommandsRefuseAChangeBeyondTheReachOfTheActingAccount(t *testing
 		{"a disable of an account under a role carrying more", nil, []string{"account:disable", "admin@example.com"},
 			"admin@example.com", "",
 			"the role admin of admin@example.com carries change_others_work, which the account manager@example.com lacks"},
-		{"an enable of an account under a role carrying more", []string{disabling("editor@example.com")},
+		{"an enable of an account under a role carrying more", []change{disabling("editor@example.com")},
 			[]string{"account:enable", "editor@example.com"}, "editor@example.com", "",
 			"the role editor of editor@example.com carries change_others_work, which the account manager@example.com lacks"},
-		{"a grant of a role carrying more", []string{holding("author@example.com", "")},
+		{"a grant of a role carrying more", []change{holding("author@example.com", "")},
 			[]string{"account:grant-role", "-role", "editor"}, "author@example.com", migratedLine,
 			"the role editor carries change_others_work, which the account manager@example.com lacks"},
 	}
@@ -251,7 +241,7 @@ func TestAccountCommandsNameAnActingAddressNoAccountHolds(t *testing.T) {
 func TestAccountCommandsTreatABlankActingAddressAsAMisuse(t *testing.T) {
 	t.Parallel()
 
-	p := trusting("postgres://postgres@127.0.0.1:1/none?connect_timeout=1")
+	p := trusting(unreachable)
 	for _, line := range reachingLines {
 		t.Run(line[0], func(t *testing.T) {
 			t.Parallel()
@@ -279,77 +269,68 @@ func TestAccountCommandsRefuseAnActingAccountWithoutARoleAnythingThatCarriesACap
 		"which the account manager@example.com lacks\n", "account:disable", "admin@example.com", "-as", "manager@example.com")
 }
 
-func TestDisableRefusesTheActingAccountDisablingItself(t *testing.T) {
-	t.Parallel()
+// selfChange is one run in which the admin changes its own account.
+type selfChange struct {
+	name  string
+	setup []change
+	args  []string
+}
 
-	tests := []struct {
-		name  string
-		setup []string
-		args  []string
-	}{
-		{"a dry run beside a second admin", []string{holding("editor@example.com", "admin")},
-			[]string{"account:disable", "admin@example.com"}},
-		{"an applied run beside a second admin", []string{holding("editor@example.com", "admin")},
-			[]string{"account:disable", "admin@example.com", "-yes"}},
-		{"an address typed in capitals between spaces", []string{holding("editor@example.com", "admin")},
-			[]string{"account:disable", " Admin@Example.COM ", "-yes"}},
-		{"a dry run of the single admin", nil, []string{"account:disable", "admin@example.com"}},
-		{"an applied run of the single admin", nil, []string{"account:disable", "admin@example.com", "-yes"}},
-	}
-	for _, tt := range tests {
+// refusesSelf runs each change as the admin on a recorded world, wanting message, no record and the admin kept.
+func refusesSelf(t *testing.T, message string, changes []selfChange) {
+	t.Helper()
+	for _, tt := range changes {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
 			address := recorded(t)
 			run(t, address, tt.setup...)
 
-			refuses(t, overseen(address), "myapp: the account admin@example.com cannot disable itself\n",
-				slices.Concat(tt.args, []string{"-as", "admin@example.com"})...)
+			refuses(t, overseen(address), message, slices.Concat(tt.args, []string{"-as", "admin@example.com"})...)
 
 			if held := records(t, address); len(held) != 0 {
 				t.Errorf("records = %v, want none", held)
 			}
 			if after := standingOf(t, address, "admin@example.com"); after != `role "admin", disabled false` {
-				t.Errorf("admin@example.com holds %s, want it kept enabled", after)
+				t.Errorf("admin@example.com holds %s, want it kept an enabled admin", after)
 			}
 		})
 	}
 }
 
+// disablingItself are the runs in which the admin disables its own account.
+var disablingItself = []selfChange{
+	{"a dry run beside a second admin", []change{holding("editor@example.com", "admin")},
+		[]string{"account:disable", "admin@example.com"}},
+	{"an applied run beside a second admin", []change{holding("editor@example.com", "admin")},
+		[]string{"account:disable", "admin@example.com", "-yes"}},
+	{"an address typed in capitals between spaces", []change{holding("editor@example.com", "admin")},
+		[]string{"account:disable", " Admin@Example.COM ", "-yes"}},
+	{"a dry run of the single admin", nil, []string{"account:disable", "admin@example.com"}},
+	{"an applied run of the single admin", nil, []string{"account:disable", "admin@example.com", "-yes"}},
+}
+
+// changingItsOwnRole are the runs in which the admin changes its own role.
+var changingItsOwnRole = []selfChange{
+	{"a dry run beside a second admin", []change{holding("editor@example.com", "admin")},
+		[]string{"account:role", "admin@example.com", "author"}},
+	{"an applied run beside a second admin", []change{holding("editor@example.com", "admin")},
+		[]string{"account:role", "admin@example.com", "author", "-yes"}},
+	{"an address typed in capitals between spaces", []change{holding("editor@example.com", "admin")},
+		[]string{"account:role", " Admin@Example.COM ", "author", "-yes"}},
+	{"the role it already holds", nil, []string{"account:role", "admin@example.com", "admin", "-yes"}},
+	{"a dry run of the single admin", nil, []string{"account:role", "admin@example.com", "editor"}},
+	{"an applied run of the single admin", nil, []string{"account:role", "admin@example.com", "editor", "-yes"}},
+}
+
+func TestDisableRefusesTheActingAccountDisablingItself(t *testing.T) {
+	t.Parallel()
+
+	refusesSelf(t, "myapp: the account admin@example.com cannot disable itself\n", disablingItself)
+}
+
 func TestSetRoleRefusesTheActingAccountChangingItsOwnRole(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		name  string
-		setup []string
-		args  []string
-	}{
-		{"a dry run beside a second admin", []string{holding("editor@example.com", "admin")},
-			[]string{"account:role", "admin@example.com", "author"}},
-		{"an applied run beside a second admin", []string{holding("editor@example.com", "admin")},
-			[]string{"account:role", "admin@example.com", "author", "-yes"}},
-		{"an address typed in capitals between spaces", []string{holding("editor@example.com", "admin")},
-			[]string{"account:role", " Admin@Example.COM ", "author", "-yes"}},
-		{"the role it already holds", nil, []string{"account:role", "admin@example.com", "admin", "-yes"}},
-		{"a dry run of the single admin", nil, []string{"account:role", "admin@example.com", "editor"}},
-		{"an applied run of the single admin", nil, []string{"account:role", "admin@example.com", "editor", "-yes"}},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			address := recorded(t)
-			run(t, address, tt.setup...)
-
-			refuses(t, overseen(address), "myapp: the account admin@example.com cannot change its own role\n",
-				slices.Concat(tt.args, []string{"-as", "admin@example.com"})...)
-
-			if held := records(t, address); len(held) != 0 {
-				t.Errorf("records = %v, want none", held)
-			}
-			if after := standingOf(t, address, "admin@example.com"); after != `role "admin", disabled false` {
-				t.Errorf("admin@example.com holds %s, want its role kept", after)
-			}
-		})
-	}
+	refusesSelf(t, "myapp: the account admin@example.com cannot change its own role\n", changingItsOwnRole)
 }

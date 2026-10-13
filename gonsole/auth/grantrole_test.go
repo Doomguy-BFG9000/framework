@@ -5,6 +5,7 @@ package auth_test
 import (
 	"context"
 	"errors"
+	"slices"
 	"strings"
 	"testing"
 
@@ -31,7 +32,7 @@ Flags:
 // dryRunNotice is the line a dry run of myapp ends with on stderr.
 const dryRunNotice = "myapp: dry run, nothing changed, pass -yes to apply\n"
 
-// withRoleless returns the address of a seeded database that also holds count accounts under no role.
+// withRoleless returns the address of a seeded world that also holds count accounts under no role.
 func withRoleless(t *testing.T, count int) string {
 	t.Helper()
 	address := seeded(t)
@@ -46,6 +47,15 @@ func withRoleless(t *testing.T, count int) string {
 		}
 	}
 	return address
+}
+
+// grantedRole returns the role of a-roleless@example.com, empty for a world made with no roleless account.
+func grantedRole(t *testing.T, address string, roleless int) string {
+	t.Helper()
+	if roleless == 0 {
+		return ""
+	}
+	return account(t, storeAt(t, address), "a-roleless@example.com").Role
 }
 
 func TestGrantRoleGivesTheRoleOnlyWithYes(t *testing.T) {
@@ -83,10 +93,8 @@ func TestGrantRoleGivesTheRoleOnlyWithYes(t *testing.T) {
 			if got != want {
 				t.Fatalf("Run() = %+v, want %+v", got, want)
 			}
-			if tc.roleless > 0 {
-				if held := account(t, storeAt(t, address), "a-roleless@example.com"); held.Role != tc.role {
-					t.Errorf("role = %q, want %q", held.Role, tc.role)
-				}
+			if role := grantedRole(t, address, tc.roleless); role != tc.role {
+				t.Errorf("role = %q, want %q", role, tc.role)
 			}
 			if held := account(t, storeAt(t, address), "admin@example.com"); held.Role != "admin" {
 				t.Errorf("an account holding a role now holds %q, want admin kept", held.Role)
@@ -145,7 +153,7 @@ func TestGrantRoleRefusesAMissingRoleBeforeAnySchemaStep(t *testing.T) {
 		t.Run(condition, func(t *testing.T) {
 			t.Parallel()
 
-			address := empty(t)
+			address := fresh(t)
 			var reads rolesRead
 
 			got := testkit.Run(t, program(address, auth.GrantRole(config(&reads, ""))), "", args...)
@@ -158,8 +166,8 @@ func TestGrantRoleRefusesAMissingRoleBeforeAnySchemaStep(t *testing.T) {
 			if reads.count != 0 {
 				t.Errorf("roles read %d times, want none", reads.count)
 			}
-			if found(t, address, schemaHeld, "auth") {
-				t.Error("the account schema exists, want a bare database")
+			if ran := worldAt(t, address).migrations.Load(); ran != 0 {
+				t.Errorf("the accounts step ran %d times, want a bare database", ran)
 			}
 		})
 	}
@@ -198,13 +206,15 @@ func TestGrantRoleRefusesAMissingRoleBeforeItChecksTheActingAccount(t *testing.T
 func TestGrantRoleDryRunFailsOverADatabaseNeverMigrated(t *testing.T) {
 	t.Parallel()
 
+	address := fresh(t)
+	storeAt(t, address).ListUsersErr = errListing
 	var reads rolesRead
 
-	got := testkit.Run(t, program(empty(t), auth.GrantRole(config(&reads, ""))), "", "account:grant-role", "-role",
+	got := testkit.Run(t, program(address, auth.GrantRole(config(&reads, ""))), "", "account:grant-role", "-role",
 		"editor")
 
-	if got.Code != gonsole.ExitFailed || !strings.HasPrefix(got.Stderr, "myapp: postgres: list users: ") {
-		t.Errorf("Run() = %+v, want exit 1 and the failed listing", got)
+	if want := failed(errListing); got != want {
+		t.Errorf("Run() = %+v, want %+v, the failed listing", got, want)
 	}
 }
 
@@ -232,7 +242,7 @@ func TestGrantRoleFailsWhenTheRolesCannotBeRead(t *testing.T) {
 
 	cfg := auth.Config{Roles: func(context.Context, gonsole.Call) (auth.Roles, error) {
 		return auth.Roles{}, errors.New("the plugin table is locked")
-	}}
+	}, Stores: memoryStores}
 
 	got := testkit.Run(t, program(withRoleless(t, 1), auth.GrantRole(cfg)), "", "account:grant-role", "-role",
 		"editor")
@@ -246,21 +256,42 @@ func TestGrantRoleReportsAWriteTheStoreRefuses(t *testing.T) {
 	t.Parallel()
 
 	address := withRoleless(t, 1)
+	storeAt(t, address).grantErr = errGrant
+	cfg := auth.Config{Roles: func(context.Context, gonsole.Call) (auth.Roles, error) {
+		return vocabulary, nil
+	}, Stores: memoryStores}
+
+	got := testkit.Run(t, program(address, auth.GrantRole(cfg)), "", "account:grant-role", "-role", "editor", "-yes")
+
+	want := failed(errGrant)
+	want.Stderr = migratedLine + want.Stderr
+	if got != want {
+		t.Errorf("Run() = %+v, want %+v: exit 1, nothing granted and the refused write", got, want)
+	}
+	if held := account(t, storeAt(t, address), "a-roleless@example.com"); held.Role != "" {
+		t.Errorf("role = %q, want none granted", held.Role)
+	}
+}
+
+func TestGrantRoleWritesUnderTheCallsContext(t *testing.T) {
+	t.Parallel()
+
+	address := withRoleless(t, 1)
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 	cfg := auth.Config{Roles: func(context.Context, gonsole.Call) (auth.Roles, error) {
 		cancel()
 		return vocabulary, nil
-	}}
+	}, Stores: memoryStores}
 	var stdout, stderr strings.Builder
 
 	code := program(address, auth.GrantRole(cfg)).Run(ctx, []string{"account:grant-role", "-role", "editor", "-yes"},
 		strings.NewReader(""), &stdout, &stderr)
 
-	if code != gonsole.ExitFailed || stdout.String() != "" ||
-		!strings.Contains(stderr.String(), "myapp: postgres: grant role: ") {
-		t.Errorf("Run() = %d, %q, %q, want exit 1, nothing granted and the refused write", code, stdout.String(),
-			stderr.String())
+	got := testkit.Result{Code: code, Stdout: stdout.String(), Stderr: stderr.String()}
+	want := testkit.Result{Code: gonsole.ExitFailed, Stderr: migratedLine + "myapp: grant role: context canceled\n"}
+	if got != want {
+		t.Errorf("Run() = %+v, want %+v: exit 1, nothing granted and the ended context", got, want)
 	}
 	if held := account(t, storeAt(t, address), "a-roleless@example.com"); held.Role != "" {
 		t.Errorf("role = %q, want none granted", held.Role)
@@ -284,7 +315,7 @@ func TestGrantRoleAsksTheProgramForItsCapability(t *testing.T) {
 	if missingActor.Code != gonsole.ExitMisused {
 		t.Errorf("Run() without -as = %+v, want exit 2", missingActor)
 	}
-	if got.Code != gonsole.ExitDone || len(asked) != 1 || asked[0] != "admin@example.com manage_accounts" {
+	if got.Code != gonsole.ExitDone || !slices.Equal(asked, []string{"admin@example.com manage_accounts"}) {
 		t.Errorf("Run() = %+v, Authorize asked %q, want exit 0 and one manage_accounts check", got, asked)
 	}
 }

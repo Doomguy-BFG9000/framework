@@ -35,7 +35,7 @@ Flags:
     	apply the change, a dry run without it
 `
 
-// withDisabledEditor returns the address of a seeded database whose editor is disabled.
+// withDisabledEditor returns the address of a seeded world whose editor is disabled.
 func withDisabledEditor(t *testing.T) string {
 	t.Helper()
 	address := seeded(t)
@@ -140,7 +140,7 @@ func TestDisableFailsWhenTheRolesCannotBeRead(t *testing.T) {
 
 	cfg := auth.Config{Roles: func(context.Context, gonsole.Call) (auth.Roles, error) {
 		return auth.Roles{}, errors.New("the plugin table is locked")
-	}}
+	}, Stores: memoryStores}
 
 	got := testkit.Run(t, program(seeded(t), standingCommands(cfg)...), "", "account:disable", "editor@example.com")
 

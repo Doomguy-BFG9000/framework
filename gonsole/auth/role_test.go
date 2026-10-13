@@ -141,7 +141,7 @@ func TestSetRoleKeepsTheLastAccountUnderAPrivilegedRoleAPluginDeclares(t *testin
 			Known:      []string{"admin", "editor", "author", "superadmin"},
 			Privileged: gouncer.Roles{"admin", "superadmin"},
 		}, nil
-	}}
+	}, Stores: memoryStores}
 
 	got := testkit.Run(t, program(address, auth.SetRole(cfg)), "", "account:role", "admin@example.com", "author",
 		"-yes")
@@ -162,7 +162,7 @@ func TestSetRoleFailsWhenTheRolesCannotBeRead(t *testing.T) {
 
 	cfg := auth.Config{Roles: func(context.Context, gonsole.Call) (auth.Roles, error) {
 		return auth.Roles{}, errors.New("the plugin table is locked")
-	}}
+	}, Stores: memoryStores}
 
 	got := testkit.Run(t, program(seeded(t), auth.SetRole(cfg)), "", "account:role", "editor@example.com", "author")
 

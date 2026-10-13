@@ -11,11 +11,13 @@ import (
 	"time"
 
 	"github.com/gopherium/gouncer"
-	"github.com/gopherium/gouncer/authkit/postgres"
-	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/gopherium/framework/gonsole"
 )
+
+// errNoStores is what every caller answers for a config whose Stores is nil.
+var errNoStores = errors.New(
+	"gonsole/auth: Config.Stores is nil, set it to the Stores of gonsole/auth/postgres or gonsole/auth/sqlite")
 
 // Config is what a program hands its account commands.
 type Config struct {
@@ -27,7 +29,7 @@ type Config struct {
 	RecordTimeout time.Duration
 	// RecordsLimit is how many records account:records lists when the COMMAND_RECORDS_LIMIT setting is empty.
 	RecordsLimit int
-	// Stores builds a call's stores and the release of what it opened, if any, nil for PostgreSQL at the database setting.
+	// Stores builds a call's stores and the release of what it opened, if any, and is required.
 	Stores func(ctx context.Context, call gonsole.Call) (Stores, func(context.Context) error, error)
 }
 
@@ -71,9 +73,7 @@ func (c Config) withStore(ctx context.Context, call gonsole.Call, use func(store
 // withStores runs use over the stores of the call and releases them after, even when use panics.
 func (c Config) withStores(ctx context.Context, call gonsole.Call, use func(stores Stores) error) (err error) {
 	if c.Stores == nil {
-		return withPool(ctx, call, func(pool *pgxpool.Pool) error {
-			return use(Stores{Accounts: postgres.NewUserStore(pool), Records: postgresRecords{db: pool}})
-		})
+		return errNoStores
 	}
 	stores, release, err := c.Stores(ctx, call)
 	if err != nil {
@@ -88,18 +88,4 @@ func (c Config) withStores(ctx context.Context, call gonsole.Call, use func(stor
 		}
 	}()
 	return use(stores)
-}
-
-// withPool runs use over a pool of the program's database and closes the pool after.
-func withPool(ctx context.Context, call gonsole.Call, use func(pool *pgxpool.Pool) error) error {
-	address, err := call.DatabaseURL()
-	if err != nil {
-		return err
-	}
-	pool, err := pgxpool.New(ctx, address)
-	if err != nil {
-		return fmt.Errorf("open the database: %w", err)
-	}
-	defer pool.Close()
-	return use(pool)
 }

@@ -13,7 +13,7 @@ import (
 	"github.com/gopherium/framework/gonsole/testkit"
 )
 
-// listed returns the address of a seeded database whose editor is disabled and that holds one account under no role.
+// listed returns the address of a seeded world whose editor is disabled and that holds one account under no role.
 func listed(t *testing.T) string {
 	t.Helper()
 	address := seeded(t)
@@ -59,11 +59,10 @@ func TestListAnswersOneDocument(t *testing.T) {
 
 	got := testkit.Run(t, program(address, auth.List(config(&reads, ""))), "", "account:list", "-json")
 
-	document := got.Stdout
 	store := storeAt(t, address)
 	for _, email := range []string{"admin@example.com", "author@example.com", "editor@example.com",
 		"roleless@example.com"} {
-		document = strings.ReplaceAll(document, account(t, store, email).ID.String(), "id of "+email)
+		got.Stdout = strings.ReplaceAll(got.Stdout, account(t, store, email).ID.String(), "id of "+email)
 	}
 	want := `{
   "accounts": [
@@ -98,8 +97,8 @@ func TestListAnswersOneDocument(t *testing.T) {
   ]
 }
 `
-	if got.Code != gonsole.ExitDone || got.Stderr != "" || document != want {
-		t.Errorf("Run() = %+v with the stored ids named, document %q, want %q", got, document, want)
+	if got != (testkit.Result{Code: gonsole.ExitDone, Stdout: want}) {
+		t.Errorf("Run() = %+v with the stored ids named, want the document %q", got, want)
 	}
 }
 
@@ -124,30 +123,24 @@ func TestListFailsWithoutAUsableDatabase(t *testing.T) {
 	t.Parallel()
 
 	cases := []struct {
-		name   string
-		env    map[string]string
-		prefix string
+		name    string
+		failure error
 	}{
-		{"no database setting", map[string]string{}, "myapp: MYAPP_DATABASE_URL is required\n"},
-		{"a malformed database address", map[string]string{
-			"MYAPP_DATABASE_URL": "postgres://localhost:5434/postgres?pool_max_conns=0",
-		}, "myapp: open the database: "},
-		{"a database never migrated", nil, "myapp: postgres: list users: "},
+		{"a database never migrated", errListing},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
 			var reads rolesRead
-			p := program(empty(t), auth.List(config(&reads, "")))
-			if tc.env != nil {
-				p.Env.Getenv = testkit.Getenv(tc.env)
-			}
+			address := fresh(t)
+			storeAt(t, address).ListUsersErr = tc.failure
+			p := program(address, auth.List(config(&reads, "")))
 
 			got := testkit.Run(t, p, "", "account:list")
 
-			if got.Code != gonsole.ExitFailed || got.Stdout != "" || !strings.HasPrefix(got.Stderr, tc.prefix) {
-				t.Errorf("Run() = %+v, want exit 1 and stderr opening with %q", got, tc.prefix)
+			if want := failed(tc.failure); got != want {
+				t.Errorf("Run() = %+v, want %+v", got, want)
 			}
 		})
 	}
