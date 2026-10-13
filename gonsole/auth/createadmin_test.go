@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"sync/atomic"
 	"testing"
 
 	"github.com/gopherium/framework/gonsole"
@@ -42,16 +43,23 @@ func TestCreateAdminCreatesAnAccountAfterTheSchema(t *testing.T) {
 
 	address := fresh(t)
 	var reads rolesRead
+	var before atomic.Int32
+	before.Store(-1)
+	cfg := config(&reads, "")
+	cfg.Stores = func(ctx context.Context, call gonsole.Call) (auth.Stores, func(context.Context) error, error) {
+		before.Store(worldAt(t, address).migrations.Load())
+		return memoryStores(ctx, call)
+	}
 
-	got := testkit.Run(t, program(address, auth.CreateAdmin(config(&reads, ""))), demoPassword+"\n", creating("admin")...)
+	got := testkit.Run(t, program(address, auth.CreateAdmin(cfg)), demoPassword+"\n", creating("admin")...)
 
 	want := testkit.Result{Code: gonsole.ExitDone, Stdout: "Password: created user maria.perez@example.com\n",
 		Stderr: migratedLine}
 	if got != want {
 		t.Fatalf("Run() = %+v, want %+v", got, want)
 	}
-	if ran := worldAt(t, address).migrations.Load(); ran != 1 {
-		t.Errorf("the accounts step ran %d times, want once before the account", ran)
+	if ran := before.Load(); ran != 1 {
+		t.Errorf("the accounts step ran %d times before the account, want once", ran)
 	}
 	if held := account(t, storeAt(t, address), "maria.perez@example.com"); held.Role != "admin" ||
 		held.Name != "Maria Perez" {
