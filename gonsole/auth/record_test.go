@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/gopherium/framework/gonsole"
 	"github.com/gopherium/framework/gonsole/auth"
 	"github.com/gopherium/framework/gonsole/testkit"
@@ -113,15 +115,25 @@ func TestRecordStoresATimeOrderedID(t *testing.T) {
 	address := recorded(t)
 	p := recording(address, guarded(), nil, command("report:purge"))
 	testkit.Run(t, p, "", "report:purge", "-as", "admin@example.com")
-	var version string
+	var version uuid.Version
 
-	if held := worldAt(t, address).records.all(); len(held) == 1 {
-		version = held[0].ID[14:15]
+	held := worldAt(t, address).records.all()
+	if len(held) == 1 {
+		version = versionOf(held[0].ID)
 	}
 
-	if version != "7" {
-		t.Errorf("id version = %q, want 7", version)
+	if version != 7 {
+		t.Errorf("records %+v, id version %d, want one record under a UUIDv7", held, version)
 	}
+}
+
+// versionOf returns the version of id when it is a UUID in its canonical text, zero otherwise.
+func versionOf(id string) uuid.Version {
+	parsed, err := uuid.Parse(id)
+	if err != nil || parsed.String() != id {
+		return 0
+	}
+	return parsed.Version()
 }
 
 func TestRecordStoresNothingForADryRun(t *testing.T) {
