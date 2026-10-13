@@ -12,15 +12,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gopherium/gouncer/authkit/postgres"
-
 	"github.com/gopherium/framework/gonsole"
 	"github.com/gopherium/framework/gonsole/auth"
 	"github.com/gopherium/framework/gonsole/testkit"
 )
 
-// unreachable is a database address nothing answers at, so a run that reads the database setting fails.
-const unreachable = "postgres://postgres@127.0.0.1:1/none?connect_timeout=1"
+// unreachable is a database address no world answers at, so a run that builds its stores from the setting fails.
+const unreachable = "memory://unreachable"
 
 // The errors a failing builder, record store or release answers.
 var (
@@ -78,13 +76,12 @@ func TestEveryCallerRunsOnTheBuiltStores(t *testing.T) {
 	t.Parallel()
 
 	address := recorded(t)
-	pool := poolAt(t, address)
+	held := worldAt(t, address)
 	var builds, releases atomic.Int32
 	cfg := limited(50)
 	cfg.Stores = func(context.Context, gonsole.Call) (auth.Stores, func(context.Context) error, error) {
 		builds.Add(1)
-		stores := auth.Stores{Accounts: postgres.NewUserStore(pool), Records: auth.PostgresRecords(pool)}
-		return stores, func(context.Context) error {
+		return held.stores(), func(context.Context) error {
 			releases.Add(1)
 			return nil
 		}, nil

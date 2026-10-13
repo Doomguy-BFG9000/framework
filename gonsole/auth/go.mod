@@ -9,7 +9,6 @@ require (
 	github.com/gopherium/gouncer/authkit v0.19.0
 	github.com/gopherium/gouncer/authkit/postgres v0.13.0
 	github.com/jackc/pgx/v5 v5.10.0
-	github.com/peterldowns/pgtestdb v0.1.1
 	github.com/pressly/goose/v3 v3.27.2
 )
 

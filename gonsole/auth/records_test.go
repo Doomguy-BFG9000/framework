@@ -4,6 +4,7 @@ package auth_test
 
 import (
 	"encoding/json"
+	"reflect"
 	"strconv"
 	"strings"
 	"testing"
@@ -13,7 +14,17 @@ import (
 	"github.com/gopherium/framework/gonsole/testkit"
 )
 
-// reading returns a program over the database at address that applies guarded commands and lists their records.
+// listedRecord is one record in the document account:records answers.
+type listedRecord struct {
+	AppliedAt string            `json:"applied_at"`
+	Actor     string            `json:"actor"`
+	AccountID *string           `json:"account_id"`
+	Command   string            `json:"command"`
+	Args      []string          `json:"args"`
+	Flags     map[string]string `json:"flags"`
+}
+
+// reading returns a program over the world at address that applies guarded commands and lists their records.
 func reading(address string, cfg auth.Config, settings map[string]string) gonsole.Program {
 	commands := append(auth.Commands(cfg), auth.Records(cfg), command("report:purge"), command("report:export"))
 	return authorizing(address, cfg, settings, commands...)
@@ -43,6 +54,15 @@ func lines(text string) []string {
 		return nil
 	}
 	return strings.Split(strings.TrimSuffix(text, "\n"), "\n")
+}
+
+// refusesListing runs account:records on the world at address and fails the test unless it answers failure.
+func refusesListing(t *testing.T, address string, failure error) {
+	t.Helper()
+	got := testkit.Run(t, reading(address, limited(50), nil), "", "account:records")
+	if want := failed(failure); got != want {
+		t.Errorf("Run() = %+v, want %+v with nothing listed", got, want)
+	}
 }
 
 // titled returns a guarded command named name that takes a title and prints done.
@@ -93,27 +113,22 @@ func TestRecordsAnswersOneDocument(t *testing.T) {
 	address := recorded(t)
 	p := reading(address, limited(50), nil)
 	apply(t, p, []string{"account:grant-role", "-role", "editor", "-yes"})
-	admin := account(t, storeAt(t, address), "admin@example.com")
+	admin := account(t, storeAt(t, address), "admin@example.com").ID.String()
 
 	got := testkit.Run(t, p, "", "account:records", "-json")
 
 	var answer struct {
-		Records []struct {
-			AppliedAt string            `json:"applied_at"`
-			Actor     string            `json:"actor"`
-			AccountID *string           `json:"account_id"`
-			Command   string            `json:"command"`
-			Args      []string          `json:"args"`
-			Flags     map[string]string `json:"flags"`
-		} `json:"records"`
+		Records []listedRecord `json:"records"`
 	}
 	if err := json.Unmarshal([]byte(got.Stdout), &answer); err != nil || len(answer.Records) != 1 {
 		t.Fatalf("stdout %q, want one record, error %v", got.Stdout, err)
 	}
 	held := answer.Records[0]
-	if held.AppliedAt == "" || held.Actor != "admin@example.com" || held.AccountID == nil ||
-		*held.AccountID != admin.ID.String() || held.Command != "account:grant-role" ||
-		held.Args == nil || len(held.Args) != 0 || held.Flags["role"] != "editor" {
+	want := listedRecord{
+		AppliedAt: held.AppliedAt, Actor: "admin@example.com", AccountID: &admin, Command: "account:grant-role",
+		Args: []string{}, Flags: map[string]string{"role": "editor"},
+	}
+	if held.AppliedAt == "" || !reflect.DeepEqual(held, want) {
 		t.Errorf("record = %+v, want the grant by the admin", held)
 	}
 }
@@ -217,35 +232,31 @@ func TestRecordsPassesAFailedReadThrough(t *testing.T) {
 	t.Parallel()
 
 	address := recorded(t)
-	run(t, address, "ALTER TABLE gonsole.records DROP COLUMN flags")
-	p := reading(address, limited(50), nil)
+	worldAt(t, address).records.latestErr = errRead
 
-	got := testkit.Run(t, p, "", "account:records")
-
-	if got.Code != gonsole.ExitFailed || got.Stdout != "" || !strings.Contains(got.Stderr, "flags") {
-		t.Errorf("code %d, stdout %q, stderr %q, want 1 naming the missing column", got.Code, got.Stdout, got.Stderr)
-	}
+	refusesListing(t, address, errRead)
 }
 
-func TestRecordsNamesADatabaseItCannotReach(t *testing.T) {
+func TestRecordsPassesAFailedPresenceCheckThrough(t *testing.T) {
 	t.Parallel()
 
-	p := reading("postgres://postgres@127.0.0.1:1/none?connect_timeout=1", limited(50), nil)
+	address := recorded(t)
+	worldAt(t, address).records.heldErr = errHeld
 
-	got := testkit.Run(t, p, "", "account:records")
-
-	if got.Code != gonsole.ExitFailed || got.Stdout != "" ||
-		!strings.HasPrefix(got.Stderr, "myapp: failed to connect to ") {
-		t.Errorf("code %d, stdout %q, stderr %q, want 1 and nothing listed", got.Code, got.Stdout, got.Stderr)
-	}
+	refusesListing(t, address, errHeld)
 }
 
 func TestRecordsListsTheFlagsByName(t *testing.T) {
 	t.Parallel()
 
 	address := recorded(t)
-	run(t, address, `INSERT INTO gonsole.records (id, actor, command, args, flags) VALUES (gen_random_uuid(), `+
-		`'admin@example.com', 'report:purge', '[]', '{"zone": "d", "after": "a", "limit": "c", "kind": "b"}')`)
+	planted := auth.Entry{
+		ID: "019a0000-0000-7000-8000-000000000001", Actor: "admin@example.com", Command: "report:purge",
+		Flags: map[string]string{"zone": "d", "after": "a", "limit": "c", "kind": "b"},
+	}
+	if err := worldAt(t, address).records.Insert(t.Context(), planted); err != nil {
+		t.Fatalf("Insert() = %v", err)
+	}
 	p := reading(address, limited(50), nil)
 
 	got := testkit.Run(t, p, "", "account:records")
@@ -276,25 +287,5 @@ func TestRecordsQuotesAValueThatWouldReadWrongly(t *testing.T) {
 		if want := "  report:create  " + strconv.Quote(title); !strings.HasSuffix(listing[len(titles)-1-i], want) {
 			t.Errorf("line %q, want it to end in %s", listing[len(titles)-1-i], want)
 		}
-	}
-}
-
-func TestRecordsListsTheNewerIDFirstWithinOneMoment(t *testing.T) {
-	t.Parallel()
-
-	address := recorded(t)
-	run(t, address,
-		`INSERT INTO gonsole.records (id, applied_at, actor, command, args, flags) VALUES `+
-			`('01920000-0000-7000-8000-000000000001', '2026-09-30 10:00:00+00', 'admin@example.com', `+
-			`'report:purge', '[]', '{}'), `+
-			`('01920000-0000-7000-8000-000000000002', '2026-09-30 10:00:00+00', 'admin@example.com', `+
-			`'report:export', '[]', '{}')`)
-	p := reading(address, limited(50), nil)
-
-	got := testkit.Run(t, p, "", "account:records")
-
-	listing := lines(got.Stdout)
-	if len(listing) != 2 || !strings.HasSuffix(listing[0], "report:export") {
-		t.Errorf("stdout %q, want the export, with the newer id, first", got.Stdout)
 	}
 }

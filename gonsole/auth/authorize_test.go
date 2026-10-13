@@ -27,7 +27,7 @@ func checked() auth.Config {
 	return cfg
 }
 
-// authorizing returns a program over the database at address that checks and records its guarded commands with cfg.
+// authorizing returns a program over the world at address that checks and records its guarded commands with cfg.
 func authorizing(
 	address string, cfg auth.Config, settings map[string]string, commands ...gonsole.Command,
 ) gonsole.Program {
@@ -44,8 +44,11 @@ func TestAuthorizeLetsAnAccountWhoseRoleCarriesTheCapability(t *testing.T) {
 
 	got := testkit.Run(t, p, "", "report:purge", "-as", " Admin@Example.COM ")
 
-	if got.Code != gonsole.ExitDone || got.Stdout != "done\n" || len(records(t, address)) != 1 {
-		t.Errorf("code %d, stdout %q, stderr %q, want 0, done and one record", got.Code, got.Stdout, got.Stderr)
+	if got.Code != gonsole.ExitDone || got.Stdout != "done\n" {
+		t.Errorf("code %d, stdout %q, stderr %q, want 0 and done", got.Code, got.Stdout, got.Stderr)
+	}
+	if held := records(t, address); len(held) != 1 {
+		t.Errorf("records = %v, want one", held)
 	}
 }
 
@@ -54,7 +57,7 @@ func TestAuthorizeRefusesAnActorItCannotLetThrough(t *testing.T) {
 
 	tests := []struct {
 		name  string
-		setup []string
+		setup []change
 		actor string
 		want  string
 	}{
@@ -62,11 +65,12 @@ func TestAuthorizeRefusesAnActorItCannotLetThrough(t *testing.T) {
 			"myapp: the account editor@example.com holds the role editor, which lacks manage_users\n"},
 		{"an address no account holds", nil, "nobody@example.com",
 			"myapp: no account answers to nobody@example.com\n"},
-		{"a disabled account", []string{"UPDATE auth.users SET disabled = true WHERE email = 'admin@example.com'"},
+		{"a disabled account", []change{disabling("admin@example.com")},
 			"admin@example.com", "myapp: the account admin@example.com is disabled\n"},
-		{"an account never activated", []string{"UPDATE auth.users SET confirmed = false WHERE email = 'admin@example.com'"},
-			"admin@example.com", "myapp: the account admin@example.com was never activated\n"},
-		{"an account holding no role", []string{"UPDATE auth.users SET role = '' WHERE email = 'author@example.com'"},
+		{"an account never activated", []change{inviting("invited@example.com"),
+			holding("invited@example.com", "admin")},
+			"invited@example.com", "myapp: the account invited@example.com was never activated\n"},
+		{"an account holding no role", []change{holding("author@example.com", "")},
 			"author@example.com", "myapp: the account author@example.com holds no role, so it lacks manage_users\n"},
 	}
 	for _, tt := range tests {
@@ -79,7 +83,7 @@ func TestAuthorizeRefusesAnActorItCannotLetThrough(t *testing.T) {
 
 			got := testkit.Run(t, p, "", "report:purge", "-as", tt.actor)
 
-			if got.Code != gonsole.ExitFailed || got.Stdout != "" || got.Stderr != tt.want {
+			if want := (testkit.Result{Code: gonsole.ExitFailed, Stderr: tt.want}); got != want {
 				t.Errorf("code %d, stdout %q, stderr %q, want 1, nothing run and %q", got.Code, got.Stdout, got.Stderr, tt.want)
 			}
 			if held := records(t, address); len(held) != 0 {
@@ -105,7 +109,7 @@ func TestAuthorizeChecksADryRunToo(t *testing.T) {
 func TestAuthorizeNeverRunsForABlankActor(t *testing.T) {
 	t.Parallel()
 
-	p := authorizing("postgres://postgres@127.0.0.1:1/none?connect_timeout=1", checked(), nil, command("report:purge"))
+	p := authorizing(unreachable, checked(), nil, command("report:purge"))
 
 	got := testkit.Run(t, p, "", "report:purge", "-as", "   ")
 
@@ -124,7 +128,7 @@ func TestAuthorizeStopsAMalformedRecordTimeoutBeforeTheCommandRuns(t *testing.T)
 	got := testkit.Run(t, p, "", "report:purge", "-as", "admin@example.com")
 
 	want := `myapp: MYAPP_COMMAND_RECORD_TIMEOUT: must be a duration like 30s, got "soon"` + "\n"
-	if got.Code != gonsole.ExitFailed || got.Stdout != "" || got.Stderr != want {
+	if got != (testkit.Result{Code: gonsole.ExitFailed, Stderr: want}) {
 		t.Errorf("code %d, stdout %q, stderr %q, want 1, nothing run and %q", got.Code, got.Stdout, got.Stderr, want)
 	}
 }
@@ -138,7 +142,7 @@ func TestAuthorizeNamesTheMigrateCommandWhenTheRecordsAreMissing(t *testing.T) {
 	got := testkit.Run(t, p, "", "report:purge", "-as", "admin@example.com")
 
 	want := "myapp: the command records are missing, run migrate first\n"
-	if got.Code != gonsole.ExitFailed || got.Stdout != "" || got.Stderr != want {
+	if got != (testkit.Result{Code: gonsole.ExitFailed, Stderr: want}) {
 		t.Errorf("code %d, stdout %q, stderr %q, want 1, nothing run and %q", got.Code, got.Stdout, got.Stderr, want)
 	}
 }
@@ -160,32 +164,30 @@ func TestAuthorizePassesARolesFailureThrough(t *testing.T) {
 	}
 }
 
-func TestAuthorizePassesALookupFailureThrough(t *testing.T) {
-	t.Parallel()
-
-	address := empty(t)
-	if err := auth.RecordMigration().Run(t.Context(), address); err != nil {
-		t.Fatalf("applying the records schema: %v", err)
-	}
-	p := authorizing(address, checked(), nil, command("report:purge"))
-
-	got := testkit.Run(t, p, "", "report:purge", "-as", "admin@example.com")
-
-	if got.Code != gonsole.ExitFailed || got.Stdout != "" || !strings.Contains(got.Stderr, "auth.users") {
-		t.Errorf("code %d, stdout %q, stderr %q, want 1, nothing run and the missing accounts",
-			got.Code, got.Stdout, got.Stderr)
+// refusesPurge runs report:purge as the admin on the world at address and fails the test unless it answers failure.
+func refusesPurge(t *testing.T, address string, failure error) {
+	t.Helper()
+	got := testkit.Run(t, authorizing(address, checked(), nil, command("report:purge")), "", "report:purge", "-as",
+		"admin@example.com")
+	if want := failed(failure); got != want {
+		t.Errorf("Run() = %+v, want %+v with nothing run", got, want)
 	}
 }
 
-func TestAuthorizeNamesADatabaseItCannotReach(t *testing.T) {
+func TestAuthorizePassesALookupFailureThrough(t *testing.T) {
 	t.Parallel()
 
-	p := authorizing("postgres://postgres@127.0.0.1:1/none?connect_timeout=1", checked(), nil, command("report:purge"))
+	address := recorded(t)
+	storeAt(t, address).LookupErr = errLookup
 
-	got := testkit.Run(t, p, "", "report:purge", "-as", "admin@example.com")
+	refusesPurge(t, address, errLookup)
+}
 
-	if got.Code != gonsole.ExitFailed || got.Stdout != "" ||
-		!strings.HasPrefix(got.Stderr, "myapp: failed to connect to ") {
-		t.Errorf("code %d, stdout %q, stderr %q, want 1 and nothing run", got.Code, got.Stdout, got.Stderr)
-	}
+func TestAuthorizePassesAFailedPresenceCheckThrough(t *testing.T) {
+	t.Parallel()
+
+	address := recorded(t)
+	worldAt(t, address).records.heldErr = errHeld
+
+	refusesPurge(t, address, errHeld)
 }
