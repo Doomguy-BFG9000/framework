@@ -8,6 +8,17 @@ v0.x, minor releases may contain breaking changes.
 
 Releases of this module are tagged `gonsole/auth/vX.Y.Z`.
 
+## [Unreleased]
+
+### Changed
+
+- **Breaking.** `Config.Stores` is required. Set it to `Stores` of `gonsole/auth/postgres` or `gonsole/auth/sqlite`. A nil one fails every account command, `Authorize` and `Record`.
+- No longer requires `authkit/postgres`, pgx, goose or pgtestdb, so a program on SQLite links no PostgreSQL driver.
+
+### Removed
+
+- **Breaking.** `Migration`, `RecordMigration` and `PostgresRecords`. Use `Migration`, `RecordMigration` and `NewRecordStore` of `gonsole/auth/postgres`.
+
 ## [0.7.0] - 2026-10-11
 
 ### Changed
