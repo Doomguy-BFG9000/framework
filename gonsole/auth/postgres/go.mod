@@ -6,7 +6,7 @@ require (
 	github.com/gopherium/framework/dbkit v0.1.0
 	github.com/gopherium/framework/dbkit/postgres v0.3.0
 	github.com/gopherium/framework/gonsole v0.6.1
-	github.com/gopherium/framework/gonsole/auth v0.7.0
+	github.com/gopherium/framework/gonsole/auth v0.8.0
 	github.com/gopherium/gouncer v0.4.0
 	github.com/gopherium/gouncer/authkit/postgres v0.13.0
 	github.com/jackc/pgx/v5 v5.10.0

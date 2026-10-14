@@ -22,33 +22,22 @@ var vocabulary = auth.Roles{
 	Capabilities: map[string][]string{"admin": {"manage_users"}},
 }
 
-// storesBuilder builds the stores of one call, as auth.Config.Stores does.
-type storesBuilder = func(ctx context.Context, call gonsole.Call) (auth.Stores, func(context.Context) error, error)
-
-// testConfig returns the account commands' configuration on the stores build makes, nil for gonsole/auth's own.
-func testConfig(build storesBuilder) auth.Config {
-	return auth.Config{
+// moduleProgram returns a program called myapp over db that runs on the module's stores and schema steps.
+func moduleProgram(db testDB) gonsole.Program {
+	cfg := auth.Config{
 		Roles:      func(context.Context, gonsole.Call) (auth.Roles, error) { return vocabulary, nil },
-		Capability: "manage_users", RecordTimeout: 5 * time.Second, RecordsLimit: 10, Stores: build,
+		Capability: "manage_users", RecordTimeout: 5 * time.Second, RecordsLimit: 10, Stores: postgres.Stores,
 	}
-}
-
-// program returns a program called myapp over the database at address, configured by cfg, with migrations.
-func program(address string, cfg auth.Config, migrations ...gonsole.Step) gonsole.Program {
+	settings := map[string]string{"MYAPP_DATABASE_URL": db.address}
 	return gonsole.Program{
 		Name:       "myapp",
-		Env:        gonsole.Env{Prefix: "MYAPP_", Getenv: testkit.Getenv(map[string]string{"MYAPP_DATABASE_URL": address})},
+		Env:        gonsole.Env{Prefix: "MYAPP_", Getenv: testkit.Getenv(settings)},
 		Database:   "DATABASE_URL",
-		Migrations: migrations,
+		Migrations: steps(),
 		Commands:   append(auth.Commands(cfg), auth.Records(cfg)),
 		Authorize:  auth.Authorize(cfg),
 		Record:     auth.Record(cfg),
 	}
-}
-
-// moduleProgram returns the program over db that runs on the module's stores and schema steps.
-func moduleProgram(db testDB) gonsole.Program {
-	return program(db.address, testConfig(postgres.Stores), steps()...)
 }
 
 // wantPrinted fails t unless out, which command printed, names every part.

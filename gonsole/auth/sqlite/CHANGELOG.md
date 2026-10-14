@@ -8,6 +8,12 @@ v0.x, minor releases may contain breaking changes.
 
 Releases of this module are tagged `gonsole/auth/sqlite/vX.Y.Z`.
 
+## [Unreleased]
+
+### Changed
+
+- **Breaking.** Requires `gonsole/auth` 0.8.0. The build no longer links pgx, and go.mod no longer lists pgx or `authkit/postgres`.
+
 ## [0.1.0] - 2026-10-12
 
 ### Added
