@@ -404,7 +404,9 @@ func TestInTxRollsBackBeforeRethrowingAPanic(t *testing.T) {
 			t.Fatalf("driver calls = %v, want rollback and no commit", fake.log())
 		}
 	}()
-	dbkit.InTx(t.Context(), db, func(*sql.Tx) error {
+	if err := dbkit.InTx(t.Context(), db, func(*sql.Tx) error {
 		panic(want)
-	})
+	}); err != nil {
+		t.Fatalf("InTx() error = %v, want panic", err)
+	}
 }
