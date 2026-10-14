@@ -4,6 +4,7 @@ package postgres_test
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"strings"
@@ -75,5 +76,38 @@ func TestRecordEndsAtItsTimeout(t *testing.T) {
 		_ = holder.Close(context.Background())
 		<-ran
 		t.Fatalf("the record outlived its timeout of 200ms by %v, want it to end at the timeout", recordBound)
+	}
+}
+
+func TestAccountRecordsListsTheRecordInTextAndInUTCJSON(t *testing.T) {
+	t.Parallel()
+
+	db := seeded(t)
+	applied := testkit.Run(t, moduleProgram(db), "", "account:role", "author@example.com", "editor", "-yes",
+		"-as", "admin@example.com")
+	if applied.Code != gonsole.ExitDone {
+		t.Fatalf("account:role = %d with %q, want %d", applied.Code, applied.Stderr, gonsole.ExitDone)
+	}
+
+	listed := testkit.Run(t, moduleProgram(db), "", "account:records")
+	asJSON := testkit.Run(t, moduleProgram(db), "", "account:records", "-json")
+
+	var document struct {
+		Records []struct {
+			AppliedAt string `json:"applied_at"`
+			Actor     string `json:"actor"`
+			Command   string `json:"command"`
+		} `json:"records"`
+	}
+	if err := json.Unmarshal([]byte(asJSON.Stdout), &document); err != nil || len(document.Records) != 1 {
+		t.Fatalf("account:records -json printed %q, %v, want one record", asJSON.Stdout, err)
+	}
+	wantPrinted(t, "account:records", listed.Stdout, "admin@example.com", "account:role")
+	first := document.Records[0]
+	if first.Actor != "admin@example.com" || first.Command != "account:role" {
+		t.Errorf("account:records -json printed %+v, want the admin's role change", first)
+	}
+	if !strings.HasSuffix(first.AppliedAt, "Z") {
+		t.Errorf("account:records -json printed the time %q, want a UTC time", first.AppliedAt)
 	}
 }

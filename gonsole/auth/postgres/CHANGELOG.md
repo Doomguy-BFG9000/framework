@@ -8,6 +8,16 @@ v0.x, minor releases may contain breaking changes.
 
 Releases of this module are tagged `gonsole/auth/postgres/vX.Y.Z`.
 
+## [Unreleased]
+
+### Changed
+
+- **Breaking.** Requires `gonsole/auth` 0.8.0.
+
+### Fixed
+
+- The record store answers each record's time in UTC, so `account:records -json` prints a UTC time, as on SQLite.
+
 ## [0.1.0] - 2026-10-12
 
 ### Added

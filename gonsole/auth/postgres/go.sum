@@ -13,8 +13,8 @@ github.com/gopherium/framework/dbkit/postgres v0.3.0 h1:W9SoXXu9Y3YRum5vIG10iBHl
 github.com/gopherium/framework/dbkit/postgres v0.3.0/go.mod h1:ZUsvp2lOkhX+08sstBErt+jN6FM5HkhxV7hXgToRd+A=
 github.com/gopherium/framework/gonsole v0.6.1 h1:yi0te8BDJLuotbrd24bQDMWSJ0KgIhSIAfOjF0jpDnQ=
 github.com/gopherium/framework/gonsole v0.6.1/go.mod h1:n0aJzbwPGPryrWKZ8WzDVub+6R+GUBzeHSzvhMvZR64=
-github.com/gopherium/framework/gonsole/auth v0.7.0 h1:e1s0LJlLK2zPmrzexzMix7pkiTIXqRe0bd83MzYsRiE=
-github.com/gopherium/framework/gonsole/auth v0.7.0/go.mod h1:t9PxTMk18NqcoXgxokdUQnOvNPYfcW2HXVjx8fPxei0=
+github.com/gopherium/framework/gonsole/auth v0.8.0 h1:WddQbi5eRQs98tTR8qx2bLg8clDeW99Kz6mM1T03pvQ=
+github.com/gopherium/framework/gonsole/auth v0.8.0/go.mod h1:Lms8wUhRpxvQd3M8kv1tpMS9Pox0Qh/M+1j4HjLq8PE=
 github.com/gopherium/gouncer v0.4.0 h1:dkbCD5oeYuuzR961UKGsAvnTvF8vTstlFbN94rP4TvI=
 github.com/gopherium/gouncer v0.4.0/go.mod h1:WwPOu8LyRikot0EODySSu46zaHcWTPbl5nOes4I3H2U=
 github.com/gopherium/gouncer/authkit v0.19.0 h1:4TPPakAHNmqG0H+7c62YomNgDfd7uRbuccIXvbdutKc=

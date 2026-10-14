@@ -66,11 +66,12 @@ func (r recordStore) Latest(ctx context.Context, limit int) ([]auth.Entry, error
 	return held, nil
 }
 
-// scanned returns the entry of row, its arguments and flags decoded from their JSON.
+// scanned returns the entry of row in UTC, its arguments and flags decoded from their JSON.
 func scanned(row pgx.CollectableRow) (auth.Entry, error) {
 	var entry auth.Entry
 	err := row.Scan(&entry.ID, &entry.AppliedAt, &entry.Actor, &entry.AccountID, &entry.Command, &entry.Args,
 		&entry.Flags)
+	entry.AppliedAt = entry.AppliedAt.UTC()
 	return entry, err
 }
 

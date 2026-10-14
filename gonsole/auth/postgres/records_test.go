@@ -3,8 +3,10 @@
 package postgres_test
 
 import (
+	"context"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/gopherium/framework/gonsole/auth"
 	"github.com/gopherium/framework/gonsole/auth/postgres"
@@ -17,6 +19,18 @@ const recordID = "019a0000-0000-7000-8000-000000000001"
 func roleChange() auth.Entry {
 	return auth.Entry{ID: recordID, Actor: "admin@example.com", Command: "account:role",
 		Args: []string{"maria@example.com", "editor"}, Flags: map[string]string{"yes": "true"}}
+}
+
+// text returns the single text lookup answers on db.
+func (db testDB) text(lookup string) string {
+	db.t.Helper()
+	conn := db.dial()
+	defer func() { _ = conn.Close(context.Background()) }()
+	var value string
+	if err := conn.QueryRow(db.t.Context(), lookup).Scan(&value); err != nil {
+		db.t.Fatalf("%s: %v", lookup, err)
+	}
+	return value
 }
 
 // mustInsert inserts entry through store and fails t when it errs.
@@ -40,6 +54,22 @@ func TestALimitBelowZeroListsNoRecords(t *testing.T) {
 	}
 	if listed == nil || len(listed) != 0 {
 		t.Errorf("Latest(-1) = %#v, want an empty list", listed)
+	}
+}
+
+func TestLatestAnswersEachTimeInUTC(t *testing.T) {
+	t.Parallel()
+
+	store := postgres.NewRecordStore(recorded(t).pool())
+	mustInsert(t, store, roleChange())
+
+	listed, err := store.Latest(t.Context(), 10)
+
+	if err != nil || len(listed) != 1 {
+		t.Fatalf("Latest() = %v, %v, want the one record", listed, err)
+	}
+	if at := listed[0].AppliedAt; at.Location() != time.UTC {
+		t.Errorf("Latest() answers the time %v in %v, want UTC", at, at.Location())
 	}
 }
 
