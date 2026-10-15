@@ -8,7 +8,7 @@ import (
 	"errors"
 )
 
-// InTx runs body in a write transaction on db, committing only when body returns nil and rolling back otherwise.
+// InTx runs body in a write transaction on db, rolling back when body does not return nil and committing otherwise.
 func InTx(ctx context.Context, db *sql.DB, body func(*sql.Tx) error) error {
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
