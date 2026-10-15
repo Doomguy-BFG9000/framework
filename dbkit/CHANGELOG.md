@@ -8,6 +8,12 @@ v0.x, minor releases may contain breaking changes.
 
 Releases of this module are tagged `dbkit/vX.Y.Z`.
 
+## [Unreleased]
+
+### Added
+
+- `InTx`, which runs a function in one write transaction on a plain `*sql.DB`, rolls back when it does not return nil, commits otherwise and joins a failed rollback to its error.
+
 ## [0.2.0] - 2026-10-10
 
 ### Added

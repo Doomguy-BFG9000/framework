@@ -122,9 +122,9 @@ func (f *fakeDriver) holdRollback() chan struct{} {
 	return f.holdEnd(&f.rollback)
 }
 
-// holdCommit makes every commit wait, once reported, until the returned gate closes or its begin context ends.
-func (f *fakeDriver) holdCommit() chan struct{} {
-	return f.holdEnd(&f.commit)
+// holdCommit makes every commit wait, once reported, until its begin context ends.
+func (f *fakeDriver) holdCommit() {
+	f.holdEnd(&f.commit)
 }
 
 // holdEnd sets the gate at slot and returns it.
