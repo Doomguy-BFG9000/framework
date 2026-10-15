@@ -8,7 +8,7 @@ v0.x, minor releases may contain breaking changes.
 
 Releases of this module are tagged `dbkit/vX.Y.Z`.
 
-## [Unreleased]
+## [0.3.0] - 2026-10-15
 
 ### Added
 
@@ -41,5 +41,6 @@ Releases of this module are tagged `dbkit/vX.Y.Z`.
 - `QueryBudget`, `QueryCount` and `QueriesIn`, counting statements per request.
 - `ErrShareFull`, when no slot frees before the statement deadline.
 
+[0.3.0]: https://github.com/gopherium/framework/releases/tag/dbkit%2Fv0.3.0
 [0.2.0]: https://github.com/gopherium/framework/releases/tag/dbkit%2Fv0.2.0
 [0.1.0]: https://github.com/gopherium/framework/releases/tag/dbkit%2Fv0.1.0
