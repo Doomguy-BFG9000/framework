@@ -5,44 +5,10 @@ package dbkit
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"fmt"
 	"sync"
 	"time"
 )
-
-// InTx runs body in a transaction, committing it when body succeeds and
-// rolling it back when body returns an error or panics.
-func InTx(ctx context.Context, db *sql.DB, body func(*sql.Tx) error) (err error) {
-	tx, err := db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		if recovered := recover(); recovered != nil {
-			_ = tx.Rollback()
-			panic(recovered)
-		}
-		if err != nil {
-			err = rollbackAfter(err, tx)
-			return
-		}
-		if err = tx.Commit(); err != nil {
-			err = rollbackAfter(err, tx)
-		}
-	}()
-
-	err = body(tx)
-	return err
-}
-
-// rollbackAfter preserves the original error unless rollback fails independently.
-func rollbackAfter(err error, tx *sql.Tx) error {
-	if rollbackErr := tx.Rollback(); rollbackErr != nil && !errors.Is(rollbackErr, sql.ErrTxDone) {
-		return errors.Join(err, rollbackErr)
-	}
-	return err
-}
 
 // Tx is a transaction of a share that holds one slot until Commit, Rollback or the end of its context.
 type Tx struct {
