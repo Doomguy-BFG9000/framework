@@ -212,12 +212,12 @@ type faultTx struct {
 // Commit rolls the transaction back and answers the next commit failure, or commits when none is set.
 func (t *faultTx) Commit() error {
 	if err := t.faults.takeCommit(); err != nil {
-		return errors.Join(err, t.Rollback())
+		return errors.Join(err, t.Tx.Rollback())
 	}
 	return t.Tx.Commit()
 }
 
-// Rollback ends the transaction and answers the next rollback failure, or the driver's answer when none is set.
+// Rollback ends the transaction and answers the driver's answer, joined with the next rollback failure if one is set.
 func (t *faultTx) Rollback() error {
 	if err := t.faults.takeRollback(); err != nil {
 		return errors.Join(err, t.Tx.Rollback())
